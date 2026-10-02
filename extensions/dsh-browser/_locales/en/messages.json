@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "dsh Browser Hand & Eye"
+  },
+  "extensionDescription": {
+    "message": "The browser executor for the dsh desktop app: the model reads and operates the page you are using, keeping your login state, with no screenshots."
+  },
+  "actionTitle": {
+    "message": "Open dsh Browser Hand & Eye"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "manifest_version": 3,
+  "name": "__MSG_extensionName__",
+  "description": "__MSG_extensionDescription__",
+  "default_locale": "en",
+  "version": "0.3.0",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "dsh-browser-lite@youbaiyun.github.io",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "browsingActivity",
+          "personalCommunications",
+          "websiteActivity",
+          "websiteContent"
+        ]
+      }
+    }
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "activeTab",
+    "scripting",
+    "webNavigation",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "action": {
+    "default_title": "__MSG_actionTitle__",
+    "default_icon": {
+      "16": "assets/icons/icon16.png",
+      "32": "assets/icons/icon32.png"
+    }
+  },
+  "sidebar_action": {
+    "default_title": "__MSG_actionTitle__",
+    "default_panel": "control/index.html",
+    "open_at_install": true,
+    "default_icon": {
+      "16": "assets/icons/icon16.png",
+      "32": "assets/icons/icon32.png",
+      "48": "assets/icons/icon48.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true,
+      "match_about_blank": true
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src ws://127.0.0.1:* http://127.0.0.1:*"
+  },
+  "icons": {
+    "16": "assets/icons/icon16.png",
+    "32": "assets/icons/icon32.png",
+    "48": "assets/icons/icon48.png",
+    "128": "assets/icons/icon128.png"
+  }
+}

@@ -1,0 +1,219 @@
+import assert from 'node:assert/strict'
+import { spawn } from 'node:child_process'
+import { once } from 'node:events'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { randomUUID } from 'node:crypto'
+import { zstdCompressSync } from 'node:zlib'
+
+const root = fileURLToPath(new URL('../', import.meta.url))
+const bridge = join(root, 'packages/browser/bridge-browser')
+const require = createRequire(join(root, 'package.json'))
+const expectedVersion = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).dependencies['@deepseek-ai/dsh']
+const cli = join(dirname(require.resolve('@deepseek-ai/dsh/package.json')), 'lib/bin.js')
+const bridgeRequire = createRequire(join(bridge, 'package.json'))
+const { default: WebSocket } = await import(pathToFileURL(bridgeRequire.resolve('ws')).href)
+const { BRIDGE_INJECT_BROWSER_SNAPSHOT_METHOD } = await import(pathToFileURL(join(bridge, 'lib/protocol.js')).href)
+const temp = await mkdtemp(join(tmpdir(), 'dsh-runtime-smoke-'))
+const home = join(temp, 'home')
+const marker = join(temp, 'observation.json')
+const patch = join(temp, 'smoke.patch.yml')
+const sessionId = `session-${randomUUID()}`
+const legacySessionId = `session-${randomUUID()}`
+const legacyProject = temp.replace(/[\\/:]+/g, '-').replace(/[^A-Za-z0-9._-]/g,
+  char => `~${char.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}`).replace(/^-+/, '')
+const legacyDirectory = join(home, 'sessions', `--${legacyProject.slice(0, 251)}--`, legacySessionId)
+const legacyFile = join(legacyDirectory, 'session.v2.jsonl.zstd')
+// A released V2 envelope, read through the production migration catalog and
+// the bridge. Keep the original bytes so the smoke also checks preservation.
+const legacyLog = [
+  { type: 'session', version: 2, id: legacySessionId, cwd: temp, createdAt: 1, isSeeded: false, delegationDepth: 0 },
+  { type: 'turn/start', data: { turn: 1 } },
+  { type: 'step/start', data: { turn: 1, step: 1 } },
+  { type: 'user/message', surfaceOp: 'append', data: { id: 'legacy-user', role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: 'Saved browser conversation' }] } },
+  { type: 'step/end', data: { turn: 1, step: 1 } },
+  { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } },
+].map((row, index) => JSON.stringify(index === 0 ? row : { ...row, seq: index - 1, time: index + 10 })).join('\n') + '\n'
+// The JSONL container requires its header in a separate Zstandard frame.
+const legacyBytes = Buffer.concat(legacyLog.trimEnd().split('\n').map(line => zstdCompressSync(Buffer.from(line + '\n'))))
+const token = randomUUID()
+const env = { ...process.env, DSH_HOME: home, DSH_TELEMETRY_DISABLED: '1' }
+// Do not inherit bridge settings or credentials from the developer's shell.
+delete env.DSH_EXT_TOKEN
+delete env.DSH_BROWSER_SESSION_WORKSPACE
+let host
+let socket
+let hostLog = ''
+let succeeded = false
+
+async function waitFor(check, label, timeout = 60_000) {
+  const end = Date.now() + timeout
+  while (Date.now() < end) {
+    if (host && (host.exitCode !== null || host.signalCode !== null)) {
+      throw new Error(`DSH exited (${host.exitCode ?? host.signalCode}) while waiting for ${label}`)
+    }
+    const value = await check()
+    if (value) return value
+    await delay(100)
+  }
+  throw new Error(`Timed out waiting for ${label}`)
+}
+
+async function command(args) {
+  const child = spawn(process.execPath, [cli, ...args], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] })
+  let output = ''
+  child.stdout.on('data', data => { output += data })
+  child.stderr.on('data', data => { output += data })
+  const timeout = setTimeout(() => child.kill('SIGKILL'), 120_000)
+  try {
+    const [code] = await once(child, 'exit')
+    assert.equal(code, 0, output)
+  } finally { clearTimeout(timeout) }
+}
+
+async function start(reopen) {
+  await rm(marker, { force: true })
+  // The production bridge is registered through the normal profile command;
+  // only test settings and the observation probe are additional patch rows.
+  await writeFile(patch, [
+    '- id: bridge-browser',
+    '  config:',
+    `    token: ${JSON.stringify(token)}`,
+    '    sessionWorkspacePath: ""',
+    '    deferSessionCreate: false',
+    '- insert:',
+    '    - id: runtime-smoke-probe',
+    `      name: ${JSON.stringify(pathToFileURL(join(root, 'scripts/fixtures/runtime-probe.mjs')).href)}`,
+    '      config:',
+    `        sessionId: ${JSON.stringify(sessionId)}`,
+    `        marker: ${JSON.stringify(marker)}`,
+    `        reopen: ${reopen}`,
+    `        profileManifest: ${JSON.stringify(join(home, 'profiles/web/package.json'))}`,
+    `        expectedVersion: ${JSON.stringify(expectedVersion)}`,
+    '',
+  ].join('\n'))
+  hostLog = ''
+  host = spawn(process.execPath, [cli, 'web', '--patch', patch, '--no-open', '--port', '0'], {
+    cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  host.stdout.on('data', data => { hostLog += data })
+  host.stderr.on('data', data => { hostLog += data })
+  let spawnError
+  host.on('error', error => { spawnError = error })
+  const base = await waitFor(() => {
+    if (spawnError) throw spawnError
+    return hostLog.match(/dsh web: (http:\/\/127\.0\.0\.1:\d+)/)?.[1]
+  }, 'host readiness')
+  const response = await fetch(`${base}/ext/bridge-config`, { signal: AbortSignal.timeout(10_000) })
+  assert.equal(response.status, 200)
+  const config = await response.json()
+  assert.equal(config.wsUrl, base.replace('http:', 'ws:') + '/ext/bridge')
+  // Firefox-style origin requires a valid token even on loopback.
+  socket = new WebSocket(config.wsUrl, { origin: 'moz-extension://runtime-smoke', handshakeTimeout: 10_000 })
+  const frames = []
+  let socketError
+  socket.on('error', error => { socketError = error })
+  socket.on('message', data => { frames.push(JSON.parse(data.toString())) })
+  await once(socket, 'open')
+  async function frame(predicate) {
+    return waitFor(() => {
+      if (socketError) throw socketError
+      const found = frames.find(predicate)
+      if (found) return found
+      if (socket.readyState === WebSocket.CLOSED) throw new Error(`Bridge closed: ${JSON.stringify(frames)}`)
+    }, 'bridge response', 15_000)
+  }
+  socket.send(JSON.stringify({ t: 'hello', token, caps: { textOnly: true, snapshotMaxChars: 32_000, maxInteractiveItems: 60 } }))
+  await frame(value => value.t === 'hello.ok')
+  return async (method, payload) => {
+    const id = randomUUID()
+    socket.send(JSON.stringify({ t: 'rpc', id, method, payload }))
+    const result = await frame(value => value.t === 'rpc.result' && value.id === id)
+    assert.equal(result.ok, true, JSON.stringify(result))
+    if (method === BRIDGE_INJECT_BROWSER_SNAPSHOT_METHOD) {
+      assert.deepEqual(result.result, { accepted: true })
+      return result.result
+    }
+    assert.equal(result.result?.result?.ok, true, JSON.stringify(result))
+    return result.result.result.value
+  }
+}
+
+async function observation() {
+  return waitFor(async () => {
+    try { return JSON.parse(await readFile(marker, 'utf8')) } catch (error) {
+      if (error.code === 'ENOENT') return undefined
+      throw error
+    }
+  }, 'persisted session observation')
+}
+
+async function stop() {
+  socket?.terminate()
+  socket = undefined
+  if (!host || host.exitCode !== null || host.signalCode !== null) return
+  const exited = once(host, 'exit')
+  host.kill('SIGTERM')
+  const timeout = setTimeout(() => host.kill('SIGKILL'), 10_000)
+  try { await exited } finally { clearTimeout(timeout) }
+  host = undefined
+}
+
+try {
+  await mkdir(home, { recursive: true })
+  await mkdir(legacyDirectory, { recursive: true })
+  await writeFile(legacyFile, legacyBytes)
+  await command(['plugin', '--profile', 'web', 'add', '-w', `@yuxianglin/dsh-bridge-browser@link:${bridge}`])
+  let rpc = await start(false)
+  const created = await rpc('session.create', { sessionId, cwd: temp })
+  assert.equal(created.sessionId, sessionId)
+  assert.equal((await observation()).sessionId, sessionId)
+  assert.ok((await rpc('session.list', {})).items.some(item => item.sessionId === sessionId))
+  await rpc(BRIDGE_INJECT_BROWSER_SNAPSHOT_METHOD, { sessionId, snapshot: 'Page: runtime smoke snapshot' })
+  const history = await rpc('session.history', { sessionId })
+  assert.ok(Array.isArray(history.events))
+  const selectedModel = { provider: 'smoke-provider', model: 'smoke-model' }
+  assert.deepEqual((await rpc('session.models', { sessionId })).current, selectedModel)
+  const injected = history.events.flatMap(({ event }) => event.type === 'agent/inbox/spliced' ? event.data.inserted : [])
+    .find(message => message.source.kind === 'browser-context')
+  // DSH 0.2 producer-owned kinds use `browser-context` (not plugin:<package>).
+  assert.ok(injected, 'the live inbox must retain the producer-owned browser snapshot')
+  assert.ok(injected.content.some(block => block.type === 'text' && block.text.includes('runtime smoke snapshot')))
+  const migrated = await rpc('session.history', { sessionId: legacySessionId })
+  assert.ok(migrated.events.some(({ event }) => event.type === 'system/message'), 'V2 migration must insert the V3 system head')
+  assert.equal(migrated.events.find(({ event }) => event.type === 'user/message')?.event.data.content[0].text, 'Saved browser conversation')
+  assert.deepEqual(await readFile(legacyFile), legacyBytes, 'migration must preserve the original V2 log')
+  await stop()
+  rpc = await start(true)
+  assert.equal((await observation()).source, 'prepared')
+  assert.deepEqual((await rpc('session.models', { sessionId })).current, selectedModel)
+  assert.ok((await rpc('session.list', {})).items.some(item => item.sessionId === sessionId))
+  const reopened = (await rpc('session.history', { sessionId })).events
+  assert.deepEqual(reopened.slice(0, history.events.length), history.events)
+  // Graceful disposal durably cancels the still-unclaimed browser snapshot.
+  // Its original V4 insertion must survive restart unchanged before that row.
+  const shutdown = reopened.slice(history.events.length)
+  assert.equal(shutdown.length, 1)
+  assert.equal(shutdown[0].event.type, 'agent/inbox/spliced')
+  assert.deepEqual(shutdown[0].event.data, {
+    target: 'next-step', start: 0, removedCount: 1, inserted: [], outcome: 'canceled',
+  })
+  const reopenedLegacy = await rpc('session.history', { sessionId: legacySessionId })
+  // Following a cold Session activates it after the opening snapshot and may
+  // append seed/permission metadata. The migrated history prefix stays exact.
+  assert.deepEqual(reopenedLegacy.events.slice(0, migrated.events.length), migrated.events)
+  assert.deepEqual(await readFile(legacyFile), legacyBytes)
+  console.log('Real DSH smoke passed: discovery, token authentication, create/list/history, Session model selection, V2 migration, V4 browser snapshots, and prepared projections after restart')
+  succeeded = true
+} catch (error) {
+  console.error(hostLog)
+  console.error(`Smoke artifacts retained at ${temp}`)
+  throw error
+} finally {
+  await stop()
+  if (succeeded) await rm(temp, { recursive: true, force: true, maxRetries: 3 })
+}

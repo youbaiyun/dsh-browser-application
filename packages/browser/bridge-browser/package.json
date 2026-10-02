@@ -1,0 +1,126 @@
+{
+  "name": "@yuxianglin/dsh-bridge-browser",
+  "description": "Bridge plugin: token-authenticated WebSocket carrier for the browser extension plus text-only browser_* tools that drive the user's Chrome via that extension",
+  "version": "0.0.7",
+  "author": "youbaiyun",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ],
+      "platform": "web"
+    }
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./protocol": {
+      "types": "./lib/types/protocol.d.ts",
+      "default": "./lib/protocol.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/protocol.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts",
+    "cordis.patch.yml",
+    "src"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.4",
+    "@deepseek-ai/dsh-agent": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-api-gateway": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-attachment": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-connection": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-locale": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-settings": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-home-paths": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-host-webserver": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-invariants": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-llm": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-persistence": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
+    "react": ">=18.2.0 <19"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-client-locale": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-settings": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-slots": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "~3.18.4",
+    "ws": "^8.21.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -b --pretty false",
+    "build": "tsc -b --pretty false && tsdown && node -e \"require('node:fs').copyFileSync('src/client.js', 'lib/client.js')\""
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "~4.0.4",
+    "@deepseek-ai/cordis-plugin-include": "~1.0.9",
+    "@deepseek-ai/cordis-plugin-loader": "~1.0.5",
+    "@deepseek-ai/dsh-agent": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-agent-loop": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-api-gateway": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-attachment": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-connection": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-home-paths": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-host-webserver": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-invariants": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-llm": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-format-v3-to-v4": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-persistence": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-persistence-jsonl": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-projection": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-storage": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-storage-domain": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-storage-json": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-system-prompt": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-user-questions": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-workspace": "0.2.0-rc.2",
+    "@types/node": "^22.20.0",
+    "@types/ws": "^8.18.1",
+    "playwright-core": "^1.61.1",
+    "tsdown": "0.22.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.11"
+  }
+}

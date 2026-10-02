@@ -1,0 +1,33 @@
+# Editor settings shared by everyone working on this repository.
+#
+# Kept small on purpose: this pins what has caused real churn — line endings
+# across Windows and Unix checkouts, and trailing whitespace in diffs.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.md]
+# Markdown line breaks are meaningful, so trailing whitespace stays.
+trim_trailing_whitespace = false
+
+[*.{yml,yaml}]
+indent_size = 2
+
+[*.ps1]
+# Windows PowerShell 5.1 rejects a BOM-less script containing non-ASCII text,
+# so these files are written with a BOM on purpose. Do not strip it.
+charset = utf-8-bom
+end_of_line = crlf
+
+[*.sh]
+end_of_line = lf
+
+[Makefile]
+indent_style = tab

@@ -1,0 +1,13 @@
+{
+  "name": "dsh-browser-benchmark",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "install-browser": "node ../packages/browser/bridge-browser/node_modules/playwright-core/cli.js install chromium",
+    "probe": "node probe.mjs",
+    "run": "node run.mjs",
+    "smoke": "node run.mjs --smoke",
+    "report": "node report.mjs",
+    "test": "node --test tests/*.test.mjs"
+  }
+}

@@ -1,0 +1,25 @@
+<!doctype html>
+<!--
+  The dsh control page: the browser side panel's conversation.
+
+  `#control-root` is the mount point, and it carries the height that every
+  descendant resolves against, so it must stay styled.
+
+  The extension page CSP is `script-src 'self'; object-src 'self'`, so this
+  document loads exactly one module and one stylesheet and inlines nothing —
+  no inline <script>, no inline <style>, no event-handler attributes. Interface
+  icons are inline SVG built in JS.
+-->
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>dsh 浏览器的手与眼</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="control-root"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

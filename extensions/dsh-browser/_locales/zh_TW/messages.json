@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "dsh 瀏覽器的手與眼（應用端）"
+  },
+  "extensionDescription": {
+    "message": "dsh 桌面端的瀏覽器執行器：模型可直接讀取並操作你正在用的頁面，保留登入狀態，無需截圖。"
+  },
+  "actionTitle": {
+    "message": "開啟 dsh 瀏覽器的手與眼"
+  }
+}

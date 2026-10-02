@@ -1,0 +1,44 @@
+# Line endings, enforced by the repository rather than by each contributor's
+# local git config.
+#
+# This matters more than usual here: `scripts/install.sh` is downloaded and run
+# by other people. A CRLF in that file makes Linux and macOS fail with
+# "bad interpreter: No such file or directory", while Windows looks perfectly
+# fine — the worst kind of bug, because it only appears on someone else's
+# machine. `core.autocrlf` is a per-machine setting and cannot be relied on.
+#
+# `eol=lf` here means: store LF, check out LF, everywhere.
+
+* text=auto eol=lf
+
+# Shell scripts must never carry a CR.
+*.sh text eol=lf
+*.mjs text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+
+# PowerShell is the exception: Windows PowerShell 5.1 rejects a BOM-less script
+# containing non-ASCII text, and its own tooling writes CRLF. The installer's
+# `.ps1` is UTF-8 with a BOM and CRLF on purpose, so only the line ending is
+# pinned here — no encoding conversion, which would round-trip the BOM.
+*.ps1 text eol=crlf
+
+# Binary assets must not be touched at all.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.zip binary
+
+# Keep diffs readable in review.
+pnpm-lock.yaml -diff linguist-generated
