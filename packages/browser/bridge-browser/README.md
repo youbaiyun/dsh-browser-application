@@ -24,14 +24,14 @@ Workspace grouping is best-effort. If the composition has no workspace domain, d
 The remote installer downloads an installer-managed workspace, builds the plugin, and registers its official bundle in the local dsh `web` profile. It requires neither Git nor a local clone:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/youbaiyun/dsh-browser-lite/refs/heads/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/youbaiyun/dsh-browser-application/refs/heads/main/scripts/install.sh | bash
 cd ~/.dsh/dsh-browser && pnpm start
 ```
 
 On Windows, run the PowerShell installer instead:
 
 ```powershell
-$s="$env:TEMP\dsh-install.ps1"; irm https://raw.githubusercontent.com/youbaiyun/dsh-browser-lite/refs/heads/main/scripts/install.ps1 -OutFile $s; powershell -NoProfile -ExecutionPolicy Bypass -File $s
+$s="$env:TEMP\dsh-install.ps1"; irm https://raw.githubusercontent.com/youbaiyun/dsh-browser-application/refs/heads/main/scripts/install.ps1 -OutFile $s; powershell -NoProfile -ExecutionPolicy Bypass -File $s
 cd $HOME\.dsh\dsh-browser; pnpm start
 ```
 

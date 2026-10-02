@@ -24,14 +24,14 @@ dsh 的**浏览器操作桥**：在宿主 webserver 上挂载一个 **token 认�
 远程安装器会下载一个由脚本托管的 workspace，构建插件，并将它的官方 bundle 注册到本机 dsh 的 `web` profile。该方式无需 Git，也无需提前 clone：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/youbaiyun/dsh-browser-lite/refs/heads/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/youbaiyun/dsh-browser-application/refs/heads/main/scripts/install.sh | bash
 cd ~/.dsh/dsh-browser && pnpm start
 ```
 
 Windows 请改用 PowerShell 安装器：
 
 ```powershell
-$s="$env:TEMP\dsh-install.ps1"; irm https://raw.githubusercontent.com/youbaiyun/dsh-browser-lite/refs/heads/main/scripts/install.ps1 -OutFile $s; powershell -NoProfile -ExecutionPolicy Bypass -File $s
+$s="$env:TEMP\dsh-install.ps1"; irm https://raw.githubusercontent.com/youbaiyun/dsh-browser-application/refs/heads/main/scripts/install.ps1 -OutFile $s; powershell -NoProfile -ExecutionPolicy Bypass -File $s
 cd $HOME\.dsh\dsh-browser; pnpm start
 ```
 

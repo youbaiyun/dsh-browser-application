@@ -65,6 +65,15 @@ export type InputIntent =
   | { kind: 'open'; url: string; options: OpenOptions; echo: string }
   /** The user typed an instruction; forward it to the model. */
   | { kind: 'prompt'; text: string }
+  /**
+   * The user typed something that looks like a directive but is unusable.
+   *
+   * Distinct from `prompt` so the message is never sent to the model: it is
+   * between the user and the parser, and the wording depends on the panel's
+   * language. When this was a `prompt` carrying a sentence, submitting a typo
+   * would have transmitted the complaint as though it were an instruction.
+   */
+  | { kind: 'error'; error: OpenError }
 
 /** How an `@open` should behave while it runs. */
 export interface OpenOptions {
@@ -73,6 +82,44 @@ export interface OpenOptions {
   /** Whether the opened tab becomes the tab the browser tools act on. */
   pin: boolean
 }
+
+/**
+ * Why an `@open` directive could not be used.
+ *
+ * A code plus its parts, not a sentence. The sentence belongs to the locale table
+ * (`strings.ts`), because a user who chose English must not be answered in
+ * Chinese — which is what happened while the parser built its own messages: nine
+ * of them, in Chinese, whatever language the panel was in.
+ *
+ * Returning the reason rather than the wording also keeps this module a pure
+ * function of its input, which is what makes it testable without a DOM.
+ */
+export type OpenError =
+  | { kind: 'directiveFormat'; known: string; soft: true }
+  | { kind: 'unknownDirective'; directive: string; known: string }
+  | { kind: 'missingUrl'; directive: string }
+  | { kind: 'firstArgumentNotUrl'; directive: string; received: string }
+  | { kind: 'notKeyValue'; pair: string }
+  | { kind: 'paceInvalid'; allowed: string; received: string }
+  | { kind: 'pinInvalid'; received: string }
+  | { kind: 'unknownKey'; key: string }
+  | { kind: 'unparsable' }
+
+/**
+ * Whether a directive error is worth interrupting the user for.
+ *
+ * `directiveFormat` fires while a correct directive is still being typed — the
+ * user has written `@op` and the rest is coming — so it is shown quietly as a
+ * reminder of the shape. Everything else is a mistake the user needs to see.
+ *
+ * This lives here, as a property of the error, rather than being inferred from
+ * the message text. The panel used to decide by testing whether the string began
+ * with a particular Chinese phrase, which meant the distinction disappeared the
+ * moment the text was translated: a half-typed directive would be shown as a hard
+ * error in English, and the browser would then have been right.
+ */
+export const isSoftOpenError = (error: OpenError): boolean =>
+  error.kind === 'directiveFormat'
 
 /** Milliseconds to pause between `@open` steps, by pace. */
 export const OPEN_PACE_MS: Record<OpenOptions['pace'], number> = {
@@ -105,13 +152,16 @@ function parseToggle(raw: string): boolean | undefined {
  * `error` when it is one but unusable — a typo in an explicit directive should
  * be reported, not silently forwarded to the model as prose.
  */
-export function parseOpenDirective(text: string): { directive: string; url?: string; options?: OpenOptions; error?: string } | undefined {
+export function parseOpenDirective(text: string): { directive: string; url?: string; options?: OpenOptions; error?: OpenError } | undefined {
   if (!text.startsWith('@')) return undefined
   const body = text.slice(1).trim()
   const match = /^([A-Za-z]+)(?:\s+([\s\S]*))?$/.exec(body)
   const directive = (match?.[1] ?? '').toLowerCase()
   const rest = (match?.[2] ?? '').trim()
-  const known = [...OPEN_DIRECTIVES].map((name) => `@${name}`).join('、')
+  // The list is joined with a comma-space rather than an ideographic comma: this
+  // is a name list rendered inside a sentence written in either language, and the
+  // Chinese comma reads as a mistake in English.
+  const known = [...OPEN_DIRECTIVES].map((name) => `@${name}`).join(', ')
 
   // A word that is a prefix of a real directive is still being typed, so it gets
   // the formula rather than a complaint. A *complete* directive with no argument
@@ -120,47 +170,47 @@ export function parseOpenDirective(text: string): { directive: string; url?: str
   // "contains only letters".
   if (!OPEN_DIRECTIVES.has(directive)) {
     if ([...OPEN_DIRECTIVES].some((name) => name.startsWith(directive))) {
-      return { directive, error: `指令格式：${known} <网址> [pace=…] [pin=…]` }
+      return { directive, error: { kind: 'directiveFormat', known, soft: true } }
     }
     // An unknown directive is almost always a typo of a known one, so name the
     // known ones instead of guessing what was meant.
-    return { directive, error: `未知指令 @${directive}，可用：${known}` }
+    return { directive, error: { kind: 'unknownDirective', directive, known } }
   }
 
   const [first, ...pairs] = tokenize(rest)
   if (first === undefined) {
-    return { directive, error: `@${directive} 缺少网址，例如：@${directive} https://example.com` }
+    return { directive, error: { kind: 'missingUrl', directive } }
   }
   // A leading URL may be followed by key=value pairs; anything else is a typo.
   const url = parseUrlLike(first)
   if (url === undefined) {
-    return { directive, error: `@${directive} 的第一个参数必须是网址（http/https 或域名），收到：${first}` }
+    return { directive, error: { kind: 'firstArgumentNotUrl', directive, received: first } }
   }
 
   const options: OpenOptions = { ...OPEN_DEFAULTS }
   for (const pair of pairs) {
     const separator = pair.indexOf('=')
     if (separator <= 0) {
-      return { directive, url, error: `参数要写成 key=value，无法识别：${pair}` }
+      return { directive, url, error: { kind: 'notKeyValue', pair } }
     }
     const key = pair.slice(0, separator).toLowerCase()
     const value = pair.slice(separator + 1)
     switch (key) {
       case 'pace': {
         if (!PACES.has(value as OpenOptions['pace'])) {
-          return { directive, url, error: `pace 只能是 ${[...PACES].join(' / ')}，收到：${value}` }
+          return { directive, url, error: { kind: 'paceInvalid', allowed: [...PACES].join(' / '), received: value } }
         }
         options.pace = value as OpenOptions['pace']
         break
       }
       case 'pin': {
         const toggle = parseToggle(value)
-        if (toggle === undefined) return { directive, url, error: `pin 只能是 on / off，收到：${value}` }
+        if (toggle === undefined) return { directive, url, error: { kind: 'pinInvalid', received: value } }
         options.pin = toggle
         break
       }
       default:
-        return { directive, url, error: `未知参数：${key}（可用：pace、pin）` }
+        return { directive, url, error: { kind: 'unknownKey', key } }
     }
   }
 
@@ -290,8 +340,9 @@ export function classifyInput(value: string): InputIntent {
   const directive = parseOpenDirective(text)
   if (directive !== undefined) {
     const echo = text.replace(/\s+/g, ' ')
-    if (directive.error !== undefined || directive.url === undefined || directive.options === undefined) {
-      return { kind: 'prompt', text: `${directive.error ?? '指令无法解析'}` }
+    if (directive.error !== undefined) return { kind: 'error', error: directive.error }
+    if (directive.url === undefined || directive.options === undefined) {
+      return { kind: 'error', error: { kind: 'unparsable' } }
     }
     return { kind: 'open', url: directive.url, options: directive.options, echo }
   }

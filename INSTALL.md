@@ -38,13 +38,13 @@
 **macOS / Linux** —— 打开终端:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/youbaiyun/dsh-browser-lite/refs/heads/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/youbaiyun/dsh-browser-application/refs/heads/main/scripts/install.sh | bash
 ```
 
 **Windows** —— 打开 **PowerShell**:
 
 ```powershell
-$s="$env:TEMP\dsh-install.ps1"; irm https://raw.githubusercontent.com/youbaiyun/dsh-browser-lite/refs/heads/main/scripts/install.ps1 -OutFile $s; powershell -NoProfile -ExecutionPolicy Bypass -File $s
+$s="$env:TEMP\dsh-install.ps1"; irm https://raw.githubusercontent.com/youbaiyun/dsh-browser-application/refs/heads/main/scripts/install.ps1 -OutFile $s; powershell -NoProfile -ExecutionPolicy Bypass -File $s
 ```
 
 **脚本会自动做完这五件事:**
@@ -83,7 +83,7 @@ $s="$env:TEMP\dsh-install.ps1"; irm https://raw.githubusercontent.com/youbaiyun/
 - 或按 **Ctrl+V** —— **脚本已经把路径复制到剪贴板了**
 - 选中这个文件夹,**点「选择文件夹」**
 
-**成功的话,页面上会出现一张卡片,名字是「dsh 浏览器的手与眼（应用端）」。**
+**成功的话,页面上会出现一张卡片,名字是「dsh 浏览器扩展（应用端）」。**
 
 > **如果是更新**:卡片已经在了,直接点卡片上的**刷新按钮**(🔄),不用重新加载。
 
@@ -99,7 +99,7 @@ $s="$env:TEMP\dsh-install.ps1"; irm https://raw.githubusercontent.com/youbaiyun/
 
 ```
 ① 看地址栏右边,找到拼图图标 🧩   (如果那里没有,点一下「扩展程序」那个拼图)
-② 点开它,列表里找到「dsh 浏览器的手与眼（应用端）」
+② 点开它,列表里找到「dsh 浏览器扩展（应用端）」
 ③ 点它右边的「固定」图钉 📌
 ④ 图标就出现在工具栏上了
 ```
@@ -206,7 +206,7 @@ corepack prepare pnpm@11.7.0 --activate
 
 - 换个网络(手机热点通常可以),或者开代理后再跑
 - 手动下载:浏览器打开
-  `https://github.com/youbaiyun/dsh-browser-lite/raw/refs/heads/main/scripts/install.sh`
+  `https://github.com/youbaiyun/dsh-browser-application/raw/refs/heads/main/scripts/install.sh`
   保存文件后,在文件所在目录执行 `bash install.sh`
   Windows 对应把 `install.sh` 换成 `install.ps1`,然后 `powershell -File install.ps1`
 

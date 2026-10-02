@@ -6,23 +6,24 @@ below are written the way they should be pasted, not formatted for Markdown.
 ## Name (75 characters max)
 
 ```
-dsh Browser Hand & Eye
+dsh Browser Extension
 ```
 
 Chinese listing (if submitted as a separate item, or as the primary locale):
 
 ```
-dsh 浏览器的手与眼（应用端）
+dsh 浏览器扩展（应用端）
 ```
 
 The name is deliberately unlike upstream's `dsh Browser Control`. Two extensions
 sharing "dsh Browser …" leaves a user unable to tell which one they want, and the
 store rejects a name that duplicates an existing listing.
 
-An English name is not a translation of the Chinese one. "Hand & Eye" is how the
-same idea reads in English; "之手与眼" would not survive being transliterated.
-`_locales/*/messages.json` holds each locale's own form, so the browser, the
-extensions page and the toolbar tooltip all agree.
+An English name is not a translation of the Chinese one. Each language states the
+same thing in its own words — a browser extension for the dsh desktop app — rather
+than one being transliterated from the other. `_locales/*/messages.json` holds each
+locale's own form, so the browser, the extensions page and the toolbar tooltip all
+agree.
 
 ## Short description (132 characters max)
 
@@ -42,7 +43,7 @@ who reads only the first three lines should still know whether they want it.
 应用端 DeepSeek Harness 浏览器插件
 
 配套技能包（Skill）：
-https://github.com/youbaiyun/dsh-browser-lite/tree/main/skills/dsh-browser-control
+https://github.com/youbaiyun/dsh-browser-application/tree/main/skills/dsh-browser-Application-troubleshooting
 
 ——————————————————————————————
 
@@ -68,10 +69,10 @@ https://github.com/youbaiyun/dsh-browser-lite/tree/main/skills/dsh-browser-contr
 English listing:
 
 ```
-dsh Browser Hand & Eye — the browser side of the dsh desktop app
+dsh Browser Extension — the browser side of the dsh desktop app
 
 Companion skill:
-https://github.com/youbaiyun/dsh-browser-lite/tree/main/skills/dsh-browser-control
+https://github.com/youbaiyun/dsh-browser-application/tree/main/skills/dsh-browser-Application-troubleshooting
 
 ——————————————————————————————
 

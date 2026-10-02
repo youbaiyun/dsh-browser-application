@@ -13,9 +13,11 @@ import {
   BROWSER_TOOL_NAMES,
   OPEN_DEFAULTS,
   classifyInput,
+  isSoftOpenError,
   parseOpenDirective,
   parseUrlLike,
   requiresConfirmArgument,
+  type OpenError,
 } from '../control/command.ts'
 
 describe('classifyInput', () => {
@@ -185,10 +187,11 @@ describe('@open directive', () => {
 
   it('rejects a key it does not implement rather than accepting and ignoring it', () => {
     // `verify` used to parse and then do nothing, which is worse than refusing:
-    // the user believes a guarantee they were never given.
+    // the user believes a guarantee they were never given. A parameter that
+    // appears to work but does nothing is worse than one that is refused.
     const parsed = parseOpenDirective('@open https://example.com verify=step')
-    expect(parsed?.error).toContain('未知参数')
-    expect(parsed?.error).toContain('verify')
+    expect(parsed?.error?.kind).toBe('unknownKey')
+    if (parsed?.error?.kind === 'unknownKey') expect(parsed.error.key).toBe('verify')
   })
 
   it('accepts the whole-domain shorthand the URL helper understands', () => {
@@ -214,21 +217,33 @@ describe('@open directive', () => {
 
   it('reports a bad formula instead of quietly forwarding it', () => {
     // A typo in an explicit directive is the user's problem to see, not prose to
-    // hand the model, so each of these becomes a prompt carrying the complaint.
-    const cases: [string, RegExp][] = [
-      ['@opne https://example.com', /未知指令/],
-      ['@open', /缺少网址/],
-      ['@open not a url', /必须是网址/],
-      ['@open https://example.com pace=quick', /pace 只能是/],
-      ['@open https://example.com verify=sometimes', /未知参数/],
-      ['@open https://example.com pin=maybe', /pin 只能是/],
-      ['@open https://example.com colour=red', /未知参数/],
-      ['@open https://example.com --fast', /key=value/],
+    // hand the model. The parser reports *why* rather than a sentence, so these
+    // assert on the reason; the wording is `strings.ts`'s business and is covered
+    // by the copy test.
+    const cases: [string, OpenError['kind']][] = [
+      ['@opne https://example.com', 'unknownDirective'],
+      ['@open', 'missingUrl'],
+      ['@open not a url', 'firstArgumentNotUrl'],
+      ['@open https://example.com pace=quick', 'paceInvalid'],
+      ['@open https://example.com verify=sometimes', 'unknownKey'],
+      ['@open https://example.com pin=maybe', 'pinInvalid'],
+      ['@open https://example.com colour=red', 'unknownKey'],
+      ['@open https://example.com --fast', 'notKeyValue'],
     ]
     for (const [input, expected] of cases) {
       const intent = classifyInput(input)
-      expect(intent.kind, input).toBe('prompt')
-      if (intent.kind === 'prompt') expect(intent.text, input).toMatch(expected)
+      expect(intent.kind, input).toBe('error')
+      if (intent.kind === 'error') expect(intent.error.kind, input).toBe(expected)
+    }
+  })
+
+  it('never forwards a malformed directive to the model', () => {
+    // The reason a malformed directive is its own intent kind rather than a
+    // prompt: as a prompt, the complaint itself would have been transmitted as
+    // though the user had typed it as an instruction.
+    for (const input of ['@opne https://example.com', '@open', '@open javascript:alert(1)']) {
+      const intent = classifyInput(input)
+      expect(intent.kind, input).toBe('error')
     }
   })
 
@@ -238,8 +253,10 @@ describe('@open directive', () => {
     // genuinely missing, so that case is asserted above as an error.
     for (const partial of ['@', '@o', '@op', '@sho']) {
       const intent = classifyInput(partial)
-      expect(intent.kind, partial).toBe('prompt')
-      if (intent.kind === 'prompt') expect(intent.text, partial).toMatch(/指令格式/)
+      expect(intent.kind, partial).toBe('error')
+      // The distinction is carried by the error, not by its wording — the panel
+      // reads this flag to choose a hint over an alarm.
+      if (intent.kind === 'error') expect(isSoftOpenError(intent.error), partial).toBe(true)
     }
   })
 
@@ -255,7 +272,7 @@ describe('@open directive', () => {
     // `javascript:` and `file:` must never reach chrome.tabs.
     for (const bad of ['@open javascript:alert(1)', '@open file:///C:/windows', '@open chrome://settings']) {
       const intent = classifyInput(bad)
-      expect(intent.kind, bad).toBe('prompt')
+      expect(intent.kind, bad).toBe('error')
     }
   })
 })

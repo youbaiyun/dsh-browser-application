@@ -685,6 +685,7 @@ function invokeTarget(call: HostRpcCall): InvokeTarget | { readonly error: HostR
     case 'session.attachment':
     case 'session.cancel':
     case 'workspace.create':
+    case 'workspace.rename':
     case 'workspace.archiveSession': {
       const [namespace, method] = call.method.split('.') as [string, string]
       return { namespace, method, args: { request: call.payload } }

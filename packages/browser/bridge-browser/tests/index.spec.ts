@@ -57,11 +57,14 @@ describe('config', () => {
     expect(resolveConfig({})).toEqual({
       ...VALID,
       sessionWorkspacePath: dshHomePath('browser-sessions'),
+      // Named, or the group would appear under its directory name.
+      sessionWorkspaceTitle: '浏览器对话',
       deferSessionCreate: true,
       // The model opens pages for the user unless the user turns it off.
       openPagesForUser: true,
     })
     expect(new Config().sessionWorkspacePath).toBe(dshHomePath('browser-sessions'))
+    expect(new Config().sessionWorkspaceTitle).toBe('浏览器对话')
   })
 
   it('preserves explicit values and the empty-string workspace opt-out', () => {
@@ -71,6 +74,7 @@ describe('config', () => {
       snapshotMaxChars: 500,
       maxInteractiveItems: 3,
       sessionWorkspacePath: '',
+      sessionWorkspaceTitle: '',
       deferSessionCreate: false,
       openPagesForUser: false,
     })).toEqual({
@@ -79,6 +83,7 @@ describe('config', () => {
       snapshotMaxChars: 500,
       maxInteractiveItems: 3,
       sessionWorkspacePath: '',
+      sessionWorkspaceTitle: '',
       deferSessionCreate: false,
       openPagesForUser: false,
     })

@@ -65,16 +65,30 @@ export interface Settings {
   /**
    * Which desktop conversation the panel's messages go to.
    *
-   * `fresh` gives the panel its own session so browser chatter never lands in a
-   * longer conversation. `pinned` continues one the user named, which is how you
-   * ask the model something about a page *in the context you already built up*.
+   * `fresh` means "the panel's own conversation": one is started when there is
+   * none to resume, and from then on the same one is reused. The id is kept in
+   * extension storage, not only in memory, so it survives the background worker
+   * being recycled — which Chrome does whenever the side panel has been idle, and
+   * which is what used to fragment a user's browser history into one session per
+   * timeout. Choosing "start a new conversation" clears the remembered id, so
+   * that choice is honoured instead of being undone by the next prompt.
+   *
+   * `pinned` continues a conversation the user picked, which is how you ask the
+   * model about a page *in the context you already built up*. Its id lives here,
+   * in settings, because it is a deliberate choice rather than the panel's own
+   * working session.
    *
    * The target is chosen, never guessed: the desktop exposes no "session I am
    * looking at" signal, so inferring it from recent activity would silently send
    * a message into the wrong conversation.
    */
   sessionScope: 'fresh' | 'pinned'
-  /** The session `pinned` mode writes to; null while nothing is chosen. */
+  /**
+   * The session `pinned` mode writes to; null while nothing is chosen.
+   *
+   * `fresh` keeps its own id elsewhere — in extension storage, alongside a check
+   * that the desktop still has it — because it is not a setting the user set.
+   */
   pinnedSessionId: string | null
   /**
    * Comfort cap for the transcript and composer, in pixels.

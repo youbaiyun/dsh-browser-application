@@ -28,7 +28,7 @@ try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } c
 # This must be the repository that publishes THIS build. Upstream
 # (Lum1104/dsh-browser) ships a different, much larger panel, so pointing here at
 # upstream would silently install that instead of this one.
-$Repository = 'youbaiyun/dsh-browser-lite'
+$Repository = 'youbaiyun/dsh-browser-application'
 $RemoteRef = 'main'
 $DshHomeDir = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $HOME '.dsh' }
 $ManagedRoot = Join-Path $DshHomeDir 'dsh-browser'
@@ -546,7 +546,7 @@ if ($IsUpdate) {
   Write-Host ''
   Write-Pair "    地址栏输入 chrome://extensions" "    Type chrome://extensions in the address bar"
   Write-Host ''
-  Write-Pair '如果页面上已有“dsh 浏览器的手与眼”卡片：' 'If the “dsh Browser Hand & Eye” card is already listed:'
+  Write-Pair '如果页面上已有“dsh 浏览器扩展”卡片：' 'If the “dsh Browser Extension” card is already listed:'
   Write-Pair '  点击卡片上的“重新加载”按钮，让扩展加载新文件。' '  Click “Reload” on that card so it picks up the updated files.'
   Write-Host ''
   Write-Pair "如果没有该卡片（例如从未加载过）：" "If the card is not listed (e.g. it was never loaded):"
@@ -555,7 +555,7 @@ if ($IsUpdate) {
   Write-Pair "  选择这个目录：" "  Select this directory:"
   Write-Host ("   {0}" -f $DistDir)
   Write-Host ''
-  Write-Pair '出现 “dsh 浏览器的手与眼” 卡片即成功。' 'When the “dsh Browser Hand & Eye” card appears, it is loaded.'
+  Write-Pair '出现 “dsh 浏览器扩展” 卡片即成功。' 'When the “dsh Browser Extension” card appears, it is loaded.'
 } else {
   if ($ChromeOpened) {
     Write-Pair "Chrome 扩展管理页已打开，请完成以下操作：" "Chrome Extensions is open. Complete these steps:"
@@ -577,7 +577,7 @@ Write-Host ''
 Write-Pair "加载完成后，第一次要做这一步——把图标固定到工具栏：" "After loading, do this once — pin the icon to the toolbar:"
 Write-Pair "  新装的扩展不会自动出现，而且没有任何扩展能自己固定（Chrome 去掉了这个能力）。" "  A new extension is not pinned, and no extension can pin itself (Chrome removed that)."
 Write-Pair "  不固定的话它一直藏在地址栏右边的拼图图标里，很容易以为装失败了。" "  Until you pin it, it stays inside the puzzle-piece menu beside the address bar, which reads as a failed install."
-Write-Pair "  做法：点地址栏右边的拼图图标 → 找到 “dsh 浏览器的手与眼” → 点右边的图钉。" "  Do this: click the puzzle-piece icon beside the address bar → find “dsh Browser Hand `& Eye” → click the pin next to it."
+Write-Pair "  做法：点地址栏右边的拼图图标 → 找到 “dsh 浏览器扩展” → 点右边的图钉。" "  Do this: click the puzzle-piece icon beside the address bar → find “dsh Browser Hand `& Eye” → click the pin next to it."
 Write-Pair "  详细图文步骤见仓库里的 INSTALL.md。" "  Step-by-step with pictures: INSTALL.md in the repository."
 Write-Host ''
 Write-Pair "固定之后：" "Once it is pinned:"

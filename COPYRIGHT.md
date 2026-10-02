@@ -49,7 +49,7 @@ The files this fork is responsible for, none of which come from upstream:
 - `extensions/dsh-browser/control/` — the side-panel UI (replaces the React panel)
 - `extensions/dsh-browser/src/settings.ts` — the settings model
 - `extensions/dsh-browser/src/background/session.ts` — panel-to-conversation binding
-- `skills/dsh-browser-control/` — the troubleshooting skill
+- `skills/dsh-browser-Application-troubleshooting/` — the troubleshooting skill
 - the panel's own tests, and the layout/measurement scripts under `scripts/`
 
 ## Removed on purpose

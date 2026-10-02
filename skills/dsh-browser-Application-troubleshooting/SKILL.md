@@ -1,9 +1,9 @@
 ---
-name: dsh-browser-control
-description: Use when the dsh browser extension (dsh 浏览器的手与眼 / dsh Browser Hand & Eye) misbehaves — the panel shows 未连接/未选择页, browser tools time out or refuse, approvals never appear, the panel is empty or clipped, or the user says the model cannot see or operate their browser.
+name: dsh-browser-Application-troubleshooting
+description: Use when the dsh browser extension (dsh 浏览器扩展 / dsh Browser Extension) misbehaves — the panel shows 未连接/未选择页, browser tools time out or refuse, approvals never appear, the panel is empty or clipped, or the user says the model cannot see or operate their browser.
 ---
 
-# dsh 浏览器的手与眼 — diagnosis and repair
+# dsh 浏览器扩展 — diagnosis and repair
 
 You are debugging the **browser side** of the dsh browser bridge: a Chrome/Firefox
 MV3 extension that lets this desktop app read and operate the user's own browser
@@ -81,8 +81,6 @@ from its own instructions**, then compare with what the source now says. A fresh
 agent's prompt is assembled from the running modules, so this measures the live
 state rather than the file. The same probe distinguishes "the text is missing"
 from "the text is present but the model ignored it".
-
-`D:\DSH-file\dsh-browser-extension` is a stale mirror: do not edit it.
 
 ## Step 1 — Read the actual state before touching anything
 

@@ -2,7 +2,9 @@
   "name": "@yuxianglin/dsh-bridge-browser",
   "description": "Bridge plugin: token-authenticated WebSocket carrier for the browser extension plus text-only browser_* tools that drive the user's Chrome via that extension",
   "version": "0.0.7",
-  "author": "youbaiyun",
+  "contributors": [
+    "Lum1104/dsh-browser — original author of this bridge (MIT); see COPYRIGHT.md"
+  ],
   "license": "MIT",
   "private": true,
   "engines": {

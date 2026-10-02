@@ -1,10 +1,10 @@
 {
-  "name": "dsh-browser-lite",
-  "version": "0.2.0",
-  "description": "Lightweight side-panel build of dsh Browser Control: the upstream bridge and browser engine with a minimal panel in place of the React UI",
+  "name": "dsh-browser-application",
+  "version": "0.2.1",
+  "description": "Side-panel browser control for dsh: the upstream browser engine and bridge with a minimal conversation panel in place of the React UI",
   "author": "youbaiyun",
   "contributors": [
-    "Browser engine and tool implementations from Lum1104/dsh-browser (MIT)"
+    "Browser engine, bridge plugin and tool implementations from Lum1104/dsh-browser (MIT); see COPYRIGHT.md for which files are whose"
   ],
   "license": "MIT",
   "private": true,

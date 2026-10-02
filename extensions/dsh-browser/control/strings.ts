@@ -11,10 +11,21 @@
  */
 
 import type { UiLocale } from '../src/i18n.ts'
+import type { OpenError } from './command.ts'
 
 export interface ControlCopy {
+  /**
+   * The browser tab's title.
+   *
+   * The heading a user reads above the panel is **not** drawn by this code: the
+   * browser renders the side panel's title from the extension's manifest name, so
+   * changing it means editing the locale message files. This field only covers
+   * the tab, and both are set to the same full name so the extension does not
+   * introduce itself two different ways. A `brand` field used to sit here for a
+   * heading that was never built, which made it look as though the heading were
+   * ours to change.
+   */
   documentTitle: string
-  brand: string
   /**
    * Connection wording.
    *
@@ -68,6 +79,30 @@ export interface ControlCopy {
     openHint: string
     disconnected: string
   }
+  /**
+   * Why a typed `@open` directive could not be used.
+   *
+   * These are functions rather than templates because the two languages order the
+   * parts differently — Chinese states the rule and then the offending value,
+   * English names the value first — so a string with placeholders substituted
+   * would read as translated rather than as written.
+   *
+   * They live here, and not beside the parser, because a user who chose English
+   * must not be answered in Chinese. That is what they used to be: nine messages
+   * hard-coded in the parser, so every `@open` mistake reported itself in Chinese
+   * whatever language the panel was in.
+   */
+  openError: {
+    directiveFormat: (known: string) => string
+    unknownDirective: (directive: string, known: string) => string
+    missingUrl: (directive: string) => string
+    firstArgumentNotUrl: (directive: string, received: string) => string
+    notKeyValue: (pair: string) => string
+    paceInvalid: (allowed: string, received: string) => string
+    pinInvalid: (received: string) => string
+    unknownKey: (key: string) => string
+    unparsable: string
+  }
   settings: {
     heading: string
     openPages: string
@@ -112,8 +147,7 @@ export interface ControlCopy {
 }
 
 const ZH: ControlCopy = {
-  documentTitle: 'dsh 浏览器的手与眼',
-  brand: 'dsh 浏览器的手与眼',
+  documentTitle: 'dsh 浏览器扩展（应用端）',
   bridge: {
     connecting: '正在连接',
     connected: '已连接',
@@ -162,6 +196,18 @@ const ZH: ControlCopy = {
     openHint: '@open 网页地址（可加 pace=slow 让它慢一点、pin=off 不接管页面）',
     disconnected: '还没连上桌面端 —— 先把桌面端打开，再重新打开这个侧边栏',
   },
+  openError: {
+    directiveFormat: (known) => `指令格式：${known} <网址> [pace=…] [pin=…]`,
+    unknownDirective: (directive, known) => `未知指令 @${directive}，可用：${known}`,
+    missingUrl: (directive) => `@${directive} 缺少网址，例如：@${directive} https://example.com`,
+    firstArgumentNotUrl: (directive, received) =>
+      `@${directive} 的第一个参数必须是网址（http/https 或域名），收到：${received}`,
+    notKeyValue: (pair) => `参数要写成 key=value，无法识别：${pair}`,
+    paceInvalid: (allowed, received) => `pace 只能是 ${allowed}，收到：${received}`,
+    pinInvalid: (received) => `pin 只能是 on / off，收到：${received}`,
+    unknownKey: (key) => `未知参数：${key}（可用：pace、pin）`,
+    unparsable: '指令无法解析',
+  },
   settings: {
     heading: '更改设置',
     openPages: 'AI 能打开网页',
@@ -206,8 +252,9 @@ const ZH: ControlCopy = {
 }
 
 const EN: ControlCopy = {
-  documentTitle: 'dsh Browser Hand & Eye',
-  brand: 'dsh Browser Hand & Eye',
+  // English has no parenthetical to mirror: the store name is the same phrase,
+  // so the short form and the full name are identical here.
+  documentTitle: 'dsh Browser Extension',
   bridge: {
     connecting: 'Connecting',
     connected: 'Connected',
@@ -256,6 +303,18 @@ const EN: ControlCopy = {
     openHint: '@open <url> [pace=fast|normal|slow] [pin=on|off] — the extension opens it so you can watch',
     disconnected: 'dsh is not connected — start the desktop app, then reopen this panel',
   },
+  openError: {
+    directiveFormat: (known) => `Format: ${known} <url> [pace=…] [pin=…]`,
+    unknownDirective: (directive, known) => `Unknown directive @${directive}. Available: ${known}`,
+    missingUrl: (directive) => `@${directive} needs a URL, for example: @${directive} https://example.com`,
+    firstArgumentNotUrl: (directive, received) =>
+      `The first @${directive} argument must be a URL (http/https or a domain); got: ${received}`,
+    notKeyValue: (pair) => `Options are written key=value; could not read: ${pair}`,
+    paceInvalid: (allowed, received) => `pace must be one of ${allowed}; got: ${received}`,
+    pinInvalid: (received) => `pin must be on or off; got: ${received}`,
+    unknownKey: (key) => `Unknown option: ${key}. Available: pace, pin`,
+    unparsable: 'The directive could not be parsed',
+  },
   settings: {
     heading: 'Change settings',
     openPages: 'AI can open web pages',
@@ -301,4 +360,30 @@ const EN: ControlCopy = {
 
 export function controlCopy(locale: UiLocale): ControlCopy {
   return locale === 'zh' ? ZH : EN
+}
+
+/**
+ * Turn a directive-parsing failure into a sentence the user can read.
+ *
+ * The parser reports a reason rather than a message, because it has no locale and
+ * because a module that builds its own user-facing sentences cannot be reused for
+ * anything else. This is the single place that decides how a reason is worded.
+ *
+ * An unknown `kind` falls back to the generic message instead of throwing: a
+ * newer background build could send a reason this panel has not learned, and
+ * failing to explain a typo is not worth a blank panel.
+ */
+export function describeOpenError(locale: UiLocale, error: OpenError): string {
+  const copy = controlCopy(locale).openError
+  switch (error.kind) {
+    case 'directiveFormat': return copy.directiveFormat(error.known)
+    case 'unknownDirective': return copy.unknownDirective(error.directive, error.known)
+    case 'missingUrl': return copy.missingUrl(error.directive)
+    case 'firstArgumentNotUrl': return copy.firstArgumentNotUrl(error.directive, error.received)
+    case 'notKeyValue': return copy.notKeyValue(error.pair)
+    case 'paceInvalid': return copy.paceInvalid(error.allowed, error.received)
+    case 'pinInvalid': return copy.pinInvalid(error.received)
+    case 'unknownKey': return copy.unknownKey(error.key)
+    default: return copy.unparsable
+  }
 }

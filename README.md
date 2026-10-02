@@ -1,4 +1,4 @@
-# dsh Browser Hand & Eye
+# dsh Browser Extension
 
 **English** | [中文](README.zh.md)
 
@@ -8,7 +8,7 @@ Connect [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) to t
 > **This is a lightweight derivative of [Lum1104/dsh-browser](https://github.com/Lum1104/dsh-browser)**, not the upstream project. The browser engine is upstream's: the text snapshot pipeline, the numbered-control addressing, the tool implementations, the approval and trust model, and the bridge. What differs is the interaction layer — the React panel was replaced with a small side-panel control strip — plus a few additions described under [What this build changes](#what-this-build-changes). Engine problems belong upstream; panel problems belong here.
 
 > [!IMPORTANT]
-> **Publishing a fork of this?** Replace `youbaiyun/dsh-browser-lite` everywhere before you push — the install commands in this file and `README.zh.md`, the badge at the top of `README.zh.md`, `REPOSITORY` in `scripts/install.sh`, and `$Repository` in `scripts/install.ps1`. It is six places. Left unreplaced, the one-line installer downloads **upstream** and installs the larger build instead of this one — the opposite of the point. Then check `.github/FUNDING.yml`, which still names the upstream maintainer's sponsorship account.
+> **Publishing a fork of this?** Replace `youbaiyun/dsh-browser-application` with your own `owner/name` everywhere before you push. The string appears 16 times: in this file, in `README.zh.md` (including the badge at the top), and once each in `REPOSITORY` in `scripts/install.sh` and `$Repository` in `scripts/install.ps1`. Left unreplaced, the one-line installer downloads **upstream** and installs the larger build instead of this one — the opposite of the point. Upstream's `.github/FUNDING.yml` is deliberately not carried here, so there is no sponsorship account to redirect.
 
 `dsh` is DeepSeek AI's open-source, plugin-based agent harness. This repository provides a companion browser bridge plugin and Chrome/Firefox MV3 extension as one standalone pnpm workspace.
 
@@ -46,19 +46,19 @@ The standard `dsh plugin` command alone cannot install this project. The integra
 macOS and Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/youbaiyun/dsh-browser-lite/refs/heads/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/youbaiyun/dsh-browser-application/refs/heads/main/scripts/install.sh | bash
 ```
 
 Windows, in PowerShell:
 
 ```powershell
-$s="$env:TEMP\dsh-install.ps1"; irm https://raw.githubusercontent.com/youbaiyun/dsh-browser-lite/refs/heads/main/scripts/install.ps1 -OutFile $s; powershell -NoProfile -ExecutionPolicy Bypass -File $s
+$s="$env:TEMP\dsh-install.ps1"; irm https://raw.githubusercontent.com/youbaiyun/dsh-browser-application/refs/heads/main/scripts/install.ps1 -OutFile $s; powershell -NoProfile -ExecutionPolicy Bypass -File $s
 ```
 
 The installer builds and registers the bridge, builds the extension, copies it to `~/.dsh/browser-extension`, puts that path on your clipboard, and opens `chrome://extensions`. Then two things need you rather than the script:
 
 1. **Load the extension** — turn on **Developer mode**, click **Load unpacked**, and paste the path (or pick `%USERPROFILE%\.dsh\browser-extension`).
-2. **Pin it to the toolbar** — a new extension is **not** pinned, and no extension can pin itself; Chrome removed that ability. Click the puzzle-piece icon beside the address bar, then the pin next to *dsh Browser Hand & Eye*. **Skipping this is the most common way to conclude the install failed when it did not** — the icon exists, it is simply inside the menu.
+2. **Pin it to the toolbar** — a new extension is **not** pinned, and no extension can pin itself; Chrome removed that ability. Click the puzzle-piece icon beside the address bar, then the pin next to *dsh Browser Extension*. **Skipping this is the most common way to conclude the install failed when it did not** — the icon exists, it is simply inside the menu.
 
 **Full walkthrough, with the prerequisites, what the script does at each step, and troubleshooting: [INSTALL.md](INSTALL.md).** It covers the pinning step in detail, the Edge conflict (only one browser can hold the bridge connection), and how to uninstall.
 
@@ -69,14 +69,16 @@ If dsh is already running, restart it after installation.
 
 ## Performance
 
-In a paired 60-run end-to-end benchmark on August 18, 2026, both backends completed all 30 assigned runs successfully, while dsh Browser Control required fewer model/tool round trips and finished faster:
+The figures below were measured by upstream on the browser engine — the snapshot pipeline, the tool implementations and the bridge — which this fork reuses unchanged. They were **not** re-run against this build, and the panel replacement does not affect them either way, since the panel sits outside the measured path. They are reproduced because the engine is the same code; treat them as upstream's numbers, not this repository's.
+
+In a paired 60-run end-to-end benchmark on August 18, 2026, both backends completed all 30 assigned runs successfully, while the engine required fewer model/tool round trips and finished faster:
 
 | Backend | Success | Mean end-to-end latency | Mean browser tool calls |
 |---|---:|---:|---:|
-| **dsh Browser Control** | **30/30** | **5.32 s** | **3.4** |
+| **dsh Browser Control** (upstream) | **30/30** | **5.32 s** | **3.4** |
 | Matched Playwright baseline | 30/30 | 6.67 s | 4.7 |
 
-The paired Playwright / extension duration ratio was **1.24** (95% CI **1.16–1.34**): Playwright took about 24% longer, or equivalently, dsh Browser Control reduced latency by about 20% and saved 1.35 seconds per task on average. The suite used six browser tasks, five deterministic seeds, the same DSH profile and model (`deepseek-v4-flash`), and independently validated page state. See the [benchmark methodology and reproduction guide](benchmark/README.md).
+The paired Playwright / extension duration ratio was **1.24** (95% CI **1.16–1.34**): Playwright took about 24% longer, or equivalently, the extension reduced latency by about 20% and saved 1.35 seconds per task on average. The suite used six browser tasks, five deterministic seeds, the same DSH profile and model (`deepseek-v4-flash`), and independently validated page state. See the [benchmark methodology and reproduction guide](benchmark/README.md) to run it yourself.
 
 ## Core capabilities
 
@@ -100,7 +102,7 @@ The paired Playwright / extension duration ratio was **1.24** (95% CI **1.16–1
 ```
 packages/browser/bridge-browser/   dsh-side bridge plugin (WebSocket carrier + browser_* tools)
 extensions/dsh-browser/            Chrome / Firefox MV3 extension (the side panel)
-skills/dsh-browser-control/        troubleshooting skill, read by the model when something breaks
+skills/dsh-browser-Application-troubleshooting/        troubleshooting skill, read by the model when something breaks
 scripts/install.sh
 scripts/install.ps1
 ```
@@ -129,13 +131,13 @@ Requirements: Node.js `^22.19` or `>=24`, Corepack/pnpm, and Chrome 116+ or Fire
 For a managed installation, run:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/youbaiyun/dsh-browser-lite/refs/heads/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/youbaiyun/dsh-browser-application/refs/heads/main/scripts/install.sh | bash
 ```
 
 or, on Windows:
 
 ```powershell
-$s="$env:TEMP\dsh-install.ps1"; irm https://raw.githubusercontent.com/youbaiyun/dsh-browser-lite/refs/heads/main/scripts/install.ps1 -OutFile $s; powershell -NoProfile -ExecutionPolicy Bypass -File $s
+$s="$env:TEMP\dsh-install.ps1"; irm https://raw.githubusercontent.com/youbaiyun/dsh-browser-application/refs/heads/main/scripts/install.ps1 -OutFile $s; powershell -NoProfile -ExecutionPolicy Bypass -File $s
 ```
 
 The installer downloads `main`, builds and registers the bridge plugin, builds the Chrome extension into `~/.dsh/browser-extension`, and opens `chrome://extensions`. On the first install, load that directory as an unpacked extension; on updates, click **Reload**. **Then pin it** — see [INSTALL.md](INSTALL.md#④-把扩展固定到导航栏) for why that step is not optional. Restart dsh if it is already running.
@@ -147,7 +149,7 @@ The Windows command downloads `install.ps1` and runs it rather than piping it in
 To install the current branch from a source checkout instead:
 
 ```sh
-git clone https://github.com/youbaiyun/dsh-browser-lite.git
+git clone https://github.com/youbaiyun/dsh-browser-application.git
 cd dsh-browser
 ./scripts/install.sh
 ```
@@ -198,7 +200,7 @@ Local Chrome use requires no configuration; Firefox requires the local bridge to
 - Verify the bridge is loaded: open `http://127.0.0.1:3080/ext/bridge-config`. It should return JSON such as `{"wsUrl":"ws://127.0.0.1:3080/ext/bridge"}`. If it returns a web page instead of JSON, the running dsh predates the bridge registration — restart dsh. The extension reclaims the connection on its own the next time you open the panel.
 - The extension probes ports 3080, 3081, 3090, 14389, 43189, and 19387 automatically. If dsh runs on another port, or you use a remote `--host 0.0.0.0` deployment, set the address (and token on Firefox) from the extension's background console as shown above — the panel deliberately has no field for it.
 - After changing bridge code or plugin configuration, **restart the desktop app**: plugins are read once at startup, and disabling/re-enabling one does not re-read them. After rebuilding the extension, reload it at `chrome://extensions`.
-- The bundled `skills/dsh-browser-control/` skill covers the remaining cases in more detail, including reading the extension's real settings from `chrome.storage.local`.
+- The bundled `skills/dsh-browser-Application-troubleshooting/` skill covers the remaining cases in more detail, including reading the extension's real settings from `chrome.storage.local`.
 
 ## Development
 

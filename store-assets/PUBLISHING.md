@@ -7,11 +7,11 @@ wrong called out.
 
 Two things must be true or the submission is rejected immediately:
 
-1. **`dsh-browser-lite` must be gone** from the repository. Run
+1. **`dsh-browser-application` must be gone** from the repository. Run
    `pnpm --filter dsh-browser-extension run test:layout` — it reports every file
    still containing the placeholder.
 2. **The name must not collide.** Upstream already holds `dsh Browser Control` on
-   the Chrome Web Store. This build ships as `dsh Browser Hand & Eye`; the name
+   the Chrome Web Store. This build ships as `dsh Browser Extension`; the name
    comes from `extensions/dsh-browser/_locales/*/messages.json`, so change it
    there and rebuild rather than editing the built package.
 
@@ -20,7 +20,7 @@ Two things must be true or the submission is rejected immediately:
 ```sh
 pnpm install --frozen-lockfile
 pnpm run build
-cd extensions/dsh-browser/dist && zip -r ../../../dsh-browser-control-lite.zip .
+cd extensions/dsh-browser/dist && zip -r ../../../dsh-browser-application-0.3.1.zip .
 ```
 
 The store wants a ZIP of the **contents** of `dist/`, not the folder itself. On
@@ -54,13 +54,38 @@ Everything needed is in this directory:
 
 ### 4. Privacy policy URL
 
-Required. Host `PRIVACY.md` publicly — pointing at the file on GitHub is
-accepted — and paste that URL.
+Required. This one exists already, created 2026-10-03 as a secret gist so it is
+reachable by anyone with the link but is not searchable:
+
+```
+https://gist.github.com/youbaiyun/92cd701036f39f168548f12c5ed171f6
+```
+
+Contents are `PRIVACY.md`. Verified reachable **without authentication** — the
+HTML page and the raw file both return HTTP 200, which is the property that
+matters: a store reviewer is not signed in to anything of yours, and a private
+gist or a private repository file would fail their check.
+
+**If the policy text ever changes**, edit the gist rather than creating a new one.
+The store stores the URL, not the text, so a new gist means an outdated URL in a
+live listing. Secret gists keep their revision history, so an edit is both
+traceable and sufficient.
 
 ### 5. Screenshots
 
 At least one at 1280×800 or 640×400. Not produced yet. Take them with the panel
-open: a conversation with a tool line, the settings sheet, and an approval card.
+open, in this order of usefulness to someone deciding whether to install:
+
+1. A conversation with a tool line — what it is, at a glance. This is the one the
+   listing shows by default.
+2. An approval card — evidence that it asks before acting.
+3. The settings sheet — evidence that the user keeps control.
+4. `@open` having opened a page — the clearest single feature.
+5. A page snapshot with numbered controls — how it reads a page without
+   screenshots.
+
+Stretch the browser window to at least 1280 wide before capturing, so the panel
+and the page are both visible at the required size.
 
 ### 6. Submit for review
 
@@ -75,13 +100,13 @@ Separate submission, separate review.
 
 ```sh
 pnpm --filter dsh-browser-extension run build:firefox
-cd extensions/dsh-browser/dist-firefox && zip -r ../../../dsh-browser-control-lite-firefox.zip .
+cd extensions/dsh-browser/dist-firefox && zip -r ../../../dsh-browser-application-0.3.1-firefox.zip .
 ```
 
 Notes specific to Firefox:
 
 - The add-on id in `manifest.firefox.json` must be yours. It is currently
-  `dsh-browser-lite@youbaiyun.github.io`. **An id is permanent once submitted** —
+  `dsh-browser-extension@youbaiyun.github.io`. **An id is permanent once submitted** —
   changing it later means a new listing, so confirm it before the first upload.
 - Firefox declares `strict_min_version: 140.0`. The sidebar and
   `storage.session` this build uses need it.

@@ -13,7 +13,8 @@ version you tested. A proof of concept is welcome but not required.
 ## What this software can do, so you can judge a report
 
 Worth stating plainly, because the answer decides whether something is a
-vulnerability or the intended design:
+vulnerability or the intended design. [docs/TRUST-MODEL.md](docs/TRUST-MODEL.md)
+has the full account, with each claim tied to a file.
 
 - **It reads and operates the tab you point it at**, using your existing browser
   session. That is the feature, not a flaw.
@@ -21,8 +22,8 @@ vulnerability or the intended design:
   reaches the model. A page that tries to issue instructions is expected and
   handled; a page that *succeeds* is a vulnerability worth reporting.
 - **Passwords and payment-card values never leave the page.** They are replaced
-  in the snapshot before it is sent. If you find a field that is not masked,
-  that is a bug and a serious one.
+  by a fixed placeholder in the snapshot before it is built. If you find a field
+  that is not masked, that is a bug and a serious one.
 - **Text typed in the panel carries an origin marker.** The model distinguishes
   it from page content. If you find a route into a prompt that bypasses the
   marker, that defeats the mechanism entirely.
@@ -31,7 +32,24 @@ vulnerability or the intended design:
 - **The bridge listens on loopback only** and authenticates with a bearer token.
   A non-loopback caller is rejected, and privileged gateway methods are refused
   for non-loopback sources.
+- **The extension makes no outbound call except to loopback.** No analytics, no
+  telemetry, no update check, no remote fetch. Verified by search; the command is
+  in the trust model.
 - **No screenshots are taken, ever.** The page channel is text by construction.
+- **No file is ever uploaded.** There is no file-input handling at all.
+
+### Two things that are capabilities, not vulnerabilities
+
+Reported here so that a report about either is understood as intended design:
+
+- **Host access is `http://*/*` and `https://*/*`.** The extension cannot know in
+  advance which tab you will point it at, so injection is broad and authority is
+  narrow: one bound tab, chosen by you.
+- **The bridge address is a stored setting that is not exposed in the panel.**
+  Left empty, discovery finds the local bridge. Set, it could name a remote host,
+  and page text would go there. Reaching it means editing extension storage
+  directly. This is inherited from upstream and is the largest non-obvious thing
+  the extension can be made to do.
 
 ## Out of scope
 

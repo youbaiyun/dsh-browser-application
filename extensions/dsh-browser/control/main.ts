@@ -35,10 +35,10 @@ import {
 import type { ApprovalDecision, ApprovalRequest } from '../src/security/approval.ts'
 import type { TabAffinityState } from '../src/background/tab-affinity.ts'
 import { getUiLocale, type UiLocale } from '../src/i18n.ts'
-import { classifyInput, type InputIntent } from './command.ts'
+import { classifyInput, isSoftOpenError, type InputIntent } from './command.ts'
 import { hasMarkdownContent, renderMarkdown } from './markdown.ts'
 import { icon, markerIcon, type IconName } from './icons.ts'
-import { controlCopy, type ControlCopy } from './strings.ts'
+import { controlCopy, describeOpenError, type ControlCopy } from './strings.ts'
 
 /** How long a reconnect waits before the page reports the worker as gone. */
 export const RECONNECT_DELAY_MS = 250
@@ -679,7 +679,13 @@ export class App {
     this.composerError = null
     if (intent.kind === 'command') this.runCommand(intent)
     else if (intent.kind === 'open') this.runOpen(intent)
-    else void this.runPrompt(intent.text)
+    else if (intent.kind === 'error') {
+      // A malformed directive is between the user and the parser. Sending the
+      // explanation to the model would be worse than useless: it would look like
+      // an instruction, and the user would be waiting for a reply about it.
+      this.composerError = describeOpenError(this.locale, intent.error)
+      this.refreshComposerMeta()
+    } else void this.runPrompt(intent.text)
   }
 
   /**
@@ -1312,16 +1318,20 @@ export class App {
     const draft = this.draft.trim()
     if (draft.startsWith('@')) {
       const intent = classifyInput(draft)
-      // While the directive is still being typed the "error" is only its shape,
-      // so it is shown as a hint; a real mistake is shown as an error.
-      if (intent.kind === 'prompt') {
-        const style = intent.text.startsWith('指令格式') ? 'composer__hint' : 'composer__error'
-        return [el('span', { className: style, text: intent.text })]
+      // A half-written directive is shown as a quiet hint — it is a reminder of
+      // the shape, not a complaint — while a real mistake is shown as an error.
+      // The distinction comes from the parser (`isSoftOpenError`), not from the
+      // wording: deciding it by testing whether the message began with a
+      // particular Chinese phrase meant the hint vanished in English, and the
+      // browser would have been right to complain in Chinese.
+      if (intent.kind === 'error') {
+        const className = isSoftOpenError(intent.error) ? 'composer__hint' : 'composer__error'
+        return [el('span', { className, text: describeOpenError(this.locale, intent.error) })]
       }
       return [el('span', { className: 'composer__hint', text: this.copy.composer.openHint })]
     }
     const intent = classifyInput(draft)
-    if (draft !== '' && this.state?.bridge !== 'connected' && intent.kind === 'prompt') {
+    if (draft !== '' && this.state?.bridge !== 'connected' && intent.kind !== 'command' && intent.kind !== 'open') {
       return [el('span', { className: 'composer__error', text: this.copy.composer.disconnected })]
     }
     return []

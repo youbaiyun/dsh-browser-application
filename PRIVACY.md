@@ -1,6 +1,6 @@
 # Privacy policy
 
-**dsh Browser Hand & Eye** — a browser extension for Chrome and Firefox.
+**dsh Browser Extension** — a browser extension for Chrome and Firefox.
 
 Last updated: 2026-10-03
 

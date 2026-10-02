@@ -32,7 +32,12 @@ describe('Firefox build contract', () => {
 
     expect(firefoxManifest.version).toBe(packageManifest.version)
     expect(firefoxManifest.version).toBe(chromeManifest.version)
-    expect(chromeManifest.version).toBe('0.3.0')
+    // The three above must agree — that is the invariant this test exists for.
+    // The literal value is not asserted, because pinning it here means editing a
+    // test on every release, and a release that forgets teaches people to update
+    // the expectation rather than look for the reason. What must hold is that the
+    // version is a shape the stores accept.
+    expect(chromeManifest.version).toMatch(/^\d+\.\d+\.\d+$/)
     // The panel API is the one legitimate difference: Chrome declares the
     // `sidePanel` permission, Firefox has no such permission to request.
     expect(firefoxManifest.permissions).toEqual(chromeManifest.permissions.filter((name) => name !== 'sidePanel'))

@@ -22,13 +22,15 @@
   --fs-meta: 12px;
   --lh-chat: 1.65;
 
-  /* Rhythm */
+  /*
+   * Rhythm. Two steps exist because something uses them, not to complete a
+   * scale: `--space-5` and `--space-6` were declared and referenced nowhere, so
+   * they were removed. Adding a step back is cheap when a rule needs it.
+   */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
 
   /* Corners */
   --r-xs: 4px;
@@ -66,7 +68,6 @@
   --warning: #a15c00;
   --warning-soft: #fff6e5;
   --danger: #c22f2f;
-  --danger-soft: #fdecec;
 
   --focus-ring: #4d6bfe;
   --header-h: 44px;
@@ -112,7 +113,6 @@
     --warning: #f0b429;
     --warning-soft: #3a2f18;
     --danger: #ff7b72;
-    --danger-soft: #3a2124;
   }
 }
 
@@ -240,7 +240,6 @@ body { overflow-x: hidden; }
 /* The model's turn: plain text, full width, like the client. */
 .msg--assistant { align-items: stretch; }
 .msg__text { overflow-wrap: anywhere; color: var(--text); }
-.msg--error .msg__text { color: var(--danger); }
 
 .caret {
   display: inline-block;
@@ -351,7 +350,6 @@ body { overflow-x: hidden; }
 }
 
 .notice--warning { background: var(--warning-soft); border-color: transparent; }
-.notice__icon { flex: none; width: 16px; height: 16px; margin-top: 2px; }
 .notice__body { min-width: 0; }
 .notice__title { font-weight: 600; }
 .notice__action { margin-top: var(--space-2); }
@@ -488,9 +486,7 @@ body { overflow-x: hidden; }
 .btn--primary:hover { background: var(--accent-hover); }
 .btn--primary:disabled { background: var(--bg-sunken); color: var(--text-tertiary); }
 .btn--outlined { border-color: var(--border-strong); }
-.btn--danger { color: var(--danger); }
 .btn--icon { width: 30px; min-height: 30px; padding: 0; border-radius: var(--r-sm); color: var(--text-secondary); }
-.btn__icon { width: 16px; height: 16px; flex: none; }
 
 /*
  * The composer's own icon button is one line tall.
@@ -581,22 +577,6 @@ body { overflow-x: hidden; }
 
 .setting__help { margin-top: 2px; font-size: var(--fs-meta); color: var(--text-tertiary); line-height: 1.45; }
 
-.setting__field {
-  width: 100%;
-  min-width: 0;
-  margin-top: var(--space-1);
-  padding: 6px var(--space-3);
-  font: inherit;
-  font-size: var(--fs-meta);
-  color: var(--text);
-  background: var(--bg-raised);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-}
-
-.setting__field::placeholder { color: var(--text-tertiary); }
-.setting__field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-
 /* The save action sits with its fields rather than at the end of the page. */
 .setting__actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
 
@@ -618,18 +598,6 @@ body { overflow-x: hidden; }
   background: var(--bg-raised);
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

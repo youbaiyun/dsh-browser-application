@@ -25,10 +25,6 @@ survive a browser restart; nothing else is stored.
 Lists the open tabs so the user can choose which one the model operates, keeps
 browser tools bound to that one tab, and opens a tab when the user asks for one.
 
-**`activeTab`**
-Reads the tab the user has pointed the assistant at. Access is to that tab only,
-and only after the user acts.
-
 **`scripting`**
 Injects the page reader and the action executor into the selected tab. This is
 how a page becomes text and how a click is delivered.

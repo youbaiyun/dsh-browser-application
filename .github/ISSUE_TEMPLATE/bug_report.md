@@ -41,7 +41,7 @@ See CONTRIBUTING.md.
 
 <!--
 The single most useful thing you can attach.
-chrome://extensions → find "dsh Browser Hand & Eye" → click "Inspect views:
+chrome://extensions → find "dsh Browser Extension" → click "Inspect views:
 Service Worker" → paste anything red, and the last few lines if nothing is.
 -->
 

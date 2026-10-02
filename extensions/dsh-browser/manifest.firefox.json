@@ -3,10 +3,10 @@
   "name": "__MSG_extensionName__",
   "description": "__MSG_extensionDescription__",
   "default_locale": "en",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "browser_specific_settings": {
     "gecko": {
-      "id": "dsh-browser-lite@youbaiyun.github.io",
+      "id": "dsh-browser-extension@youbaiyun.github.io",
       "strict_min_version": "140.0",
       "data_collection_permissions": {
         "required": [
@@ -21,7 +21,6 @@
   "permissions": [
     "storage",
     "tabs",
-    "activeTab",
     "scripting",
     "webNavigation",
     "alarms",

@@ -1,4 +1,4 @@
-# dsh 浏览器的手与眼（应用端）[![dshfind](https://dshfind.com/api/badge/youbaiyun/dsh-browser-lite?lang=zh)](https://dshfind.com/zh/plugins/youbaiyun/dsh-browser-lite?ref=badge)
+# dsh 浏览器扩展（应用端）[![dshfind](https://dshfind.com/api/badge/youbaiyun/dsh-browser-application?lang=zh)](https://dshfind.com/zh/plugins/youbaiyun/dsh-browser-application?ref=badge)
 
 [English](README.md) | **中文**
 
@@ -12,7 +12,7 @@
 浏览器操作全程保持纯文本：页面被转成结构化文本 + 一份带编号的可交互元素清单，模型按编号寻址。**任何情况下都不截图。**
 
 > [!IMPORTANT]
-> **如果你要发布本项目的分叉**，推送前请把 `youbaiyun/dsh-browser-lite` 全部替换掉：本文件、`README.md` 里的安装命令、`README.zh.md` 顶部的徽章、`scripts/install.sh` 里的 `REPOSITORY`、以及 `scripts/install.ps1` 里的 `$Repository`，共 6 处。**不替换的话，一键安装会去下载上游、装上那个更大的版本**——和本项目的用意正好相反。另外请检查 `.github/FUNDING.yml`，它目前仍指向上游维护者的赞助账号。
+> **如果你要发布本项目的分叉**，推送前请把 `youbaiyun/dsh-browser-application` 全部替换成你自己的 `owner/name`。这个字符串在仓库里出现 **16 次**：本文件、`README.zh.md`（含顶部徽章），以及 `scripts/install.sh` 里的 `REPOSITORY` 和 `scripts/install.ps1` 里的 `$Repository` 各一次。**不替换的话，一键安装会去下载上游、装上那个更大的版本**——和本项目的用意正好相反。上游的 `.github/FUNDING.yml` 本仓库有意没有沿袭，所以不存在需要改的赞助账号。
 
 > [!IMPORTANT]
 > 本 workspace 锁定 dsh 0.2.0-rc.2，这是支持的最低运行时。更早的 DSH 版本不受支持。
@@ -53,19 +53,19 @@
 macOS 与 Linux：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/youbaiyun/dsh-browser-lite/refs/heads/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/youbaiyun/dsh-browser-application/refs/heads/main/scripts/install.sh | bash
 ```
 
 Windows（PowerShell）：
 
 ```powershell
-$s="$env:TEMP\dsh-install.ps1"; irm https://raw.githubusercontent.com/youbaiyun/dsh-browser-lite/refs/heads/main/scripts/install.ps1 -OutFile $s; powershell -NoProfile -ExecutionPolicy Bypass -File $s
+$s="$env:TEMP\dsh-install.ps1"; irm https://raw.githubusercontent.com/youbaiyun/dsh-browser-application/refs/heads/main/scripts/install.ps1 -OutFile $s; powershell -NoProfile -ExecutionPolicy Bypass -File $s
 ```
 
 安装器会构建并注册桥插件、构建扩展、把它复制到 `~/.dsh/browser-extension`、把该路径复制进剪贴板，然后打开 `chrome://extensions`。接下来有两件事脚本替你做不了：
 
 1. **加载扩展** —— 打开右上角**开发者模式**，点**加载已解压的扩展程序**，粘贴那个路径（或选择 `%USERPROFILE%\.dsh\browser-extension`）。
-2. **固定到导航栏** —— 新装的扩展**不会自动固定**，而且**没有任何扩展能自己固定**：Chrome 已经去掉了这个能力。点地址栏右边的**拼图图标**，再点 *dsh 浏览器的手与眼* 旁边的图钉。**漏掉这一步，是"以为装失败了"最常见的原因**——图标一直在，只是藏在菜单里。
+2. **固定到导航栏** —— 新装的扩展**不会自动固定**，而且**没有任何扩展能自己固定**：Chrome 已经去掉了这个能力。点地址栏右边的**拼图图标**，再点 *dsh 浏览器扩展* 旁边的图钉。**漏掉这一步，是"以为装失败了"最常见的原因**——图标一直在，只是藏在菜单里。
 
 **完整图文步骤、前置条件、脚本每一步做了什么、以及故障排查：[INSTALL.md](INSTALL.md)。** 里面详细写了固定这一步、Edge 冲突（同一时间只有一个浏览器能占用连接）、以及卸载方法。
 
@@ -76,14 +76,16 @@ $s="$env:TEMP\dsh-install.ps1"; irm https://raw.githubusercontent.com/youbaiyun/
 
 ## 性能基准
 
-在 2026 年 8 月 18 日完成的 60 次配对端到端评测中，两个后端分配到的 30 次运行均全部成功；dsh 浏览器操作使用了更少的模型/工具轮次，并以更短时间完成任务：
+**以下数字是上游在浏览器引擎上测出来的** —— 也就是快照流水线、工具实现和桥接层，这几部分本版本原样沿用。**本版本没有重新跑过这套评测**；面板被替换不影响这些数字，因为面板不在被测量的路径上。放在这里是因为引擎是同一份代码：**请当成上游的数据，不是本仓库的成绩。**
+
+在 2026 年 8 月 18 日完成的 60 次配对端到端评测中，两个后端分配到的 30 次运行均全部成功；该引擎使用了更少的模型/工具轮次，并以更短时间完成任务：
 
 | 后端 | 成功率 | 平均端到端耗时 | 平均浏览器工具调用 |
 |---|---:|---:|---:|
-| **dsh 浏览器操作** | **30/30** | **5.32 秒** | **3.4** |
+| **dsh Browser Control**（上游） | **30/30** | **5.32 秒** | **3.4** |
 | 对齐工具契约的 Playwright 基线 | 30/30 | 6.67 秒 | 4.7 |
 
-Playwright / 扩展的配对耗时比为 **1.24**（95% CI **1.16–1.34**）：Playwright 耗时约多 24%；等价地说，dsh 浏览器操作将延迟降低约 20%，每个任务平均节省 1.35 秒。评测使用 6 个浏览器任务、5 个确定性 seed、相同的 DSH profile 与模型（`deepseek-v4-flash`），并通过独立页面状态验证结果。详见[评测方法与复现说明](benchmark/README.md)。
+Playwright / 扩展的配对耗时比为 **1.24**（95% CI **1.16–1.34**）：Playwright 耗时约多 24%；等价地说，该引擎将延迟降低约 20%，每个任务平均节省 1.35 秒。评测使用 6 个浏览器任务、5 个确定性 seed、相同的 DSH profile 与模型（`deepseek-v4-flash`），并通过独立页面状态验证结果。想自己跑一遍，见[评测方法与复现说明](benchmark/README.md)。
 
 ## 核心能力
 
@@ -130,13 +132,13 @@ scripts/install.ps1
 托管安装请运行：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/youbaiyun/dsh-browser-lite/refs/heads/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/youbaiyun/dsh-browser-application/refs/heads/main/scripts/install.sh | bash
 ```
 
 Windows 请运行：
 
 ```powershell
-$s="$env:TEMP\dsh-install.ps1"; irm https://raw.githubusercontent.com/youbaiyun/dsh-browser-lite/refs/heads/main/scripts/install.ps1 -OutFile $s; powershell -NoProfile -ExecutionPolicy Bypass -File $s
+$s="$env:TEMP\dsh-install.ps1"; irm https://raw.githubusercontent.com/youbaiyun/dsh-browser-application/refs/heads/main/scripts/install.ps1 -OutFile $s; powershell -NoProfile -ExecutionPolicy Bypass -File $s
 ```
 
 安装器会下载 `main`、构建并注册桥插件、把 Chrome 扩展构建到 `~/.dsh/browser-extension`，然后打开 `chrome://extensions`。首次安装时，请把该目录作为已解压扩展加载；更新时点击**重新加载**。**然后记得固定到导航栏**——为什么这一步不能省，见 [INSTALL.md](INSTALL.md#④-把扩展固定到导航栏)。如果 dsh 已在运行，请重启。
@@ -148,7 +150,7 @@ Windows 命令先下载 `install.ps1` 再执行，而不是管道给 `Invoke-Exp
 如需从源码 checkout 安装当前分支：
 
 ```sh
-git clone https://github.com/youbaiyun/dsh-browser-lite.git
+git clone https://github.com/youbaiyun/dsh-browser-application.git
 cd dsh-browser
 ./scripts/install.sh
 ```
@@ -199,7 +201,7 @@ Chrome 本机使用无需配置；Firefox 需要按上述方式设置本地桥 t
 - 确认桥接已加载：浏览器打开 `http://127.0.0.1:3080/ext/bridge-config`，应返回类似 `{"wsUrl":"ws://127.0.0.1:3080/ext/bridge"}` 的 JSON。如果返回的是网页而不是 JSON，说明当前运行的 dsh 早于桥接注册——重启 dsh。下次打开面板时扩展会自己把连接收回来。
 - 扩展会自动探测 3080/3081/3090/14389/43189/19387 端口。若 dsh 运行在其它端口，或使用 `--host 0.0.0.0` 远程部署，请按上文方式在扩展的后台控制台里设置地址（Firefox 还需设置 token）——面板刻意没有这个输入框。
 - 改动桥接代码或插件配置后，**必须重启桌面端**：插件只在启动时读取一次，禁用再启用不会重新读取。重新构建扩展后，需在 `chrome://extensions` 里重新加载。
-- 仓库内的 `skills/dsh-browser-control/` 技能包覆盖了其余情况，包括如何从 `chrome.storage.local` 直接读取扩展的真实设置。
+- 仓库内的 `skills/dsh-browser-Application-troubleshooting/` 技能包覆盖了其余情况，包括如何从 `chrome.storage.local` 直接读取扩展的真实设置。
 
 ## 开发
 

@@ -61,6 +61,16 @@ const DEFAULT_MAX_INTERACTIVE_ITEMS = 60
 /** Default directory backing the browser extension's session group. */
 const DEFAULT_SESSION_WORKSPACE_PATH = dshHomePath('browser-sessions')
 
+/**
+ * Default display name for that group.
+ *
+ * The desktop would otherwise name the group after the directory above, so a
+ * fresh install shows a group called "browser-sessions". Users do not rename
+ * workspaces from the interface and nothing advertises this one's existence, so
+ * the name is the only thing telling them their browser conversations were kept.
+ */
+const DEFAULT_SESSION_WORKSPACE_TITLE = '浏览器对话'
+
 /** Durable session storage root written by the JSONL persistence plugin. */
 const SESSIONS_ROOT = dshHomePath('sessions')
 
@@ -119,6 +129,15 @@ export interface Config {
   maxInteractiveItems?: number
   /** Dedicated workspace path for extension-created sessions. Empty disables grouping. */
   sessionWorkspacePath?: string
+  /**
+   * Display name for that workspace. Defaults to {@link DEFAULT_SESSION_WORKSPACE_TITLE}.
+   *
+   * Without it the group is named after its directory, so it reads as
+   * "browser-sessions" — which looks like an internal detail rather than the
+   * user's own browser conversations, and nothing in the interface renames it. An
+   * empty string accepts whatever name the desktop derives.
+   */
+  sessionWorkspaceTitle?: string
   /** Defer real session creation until the first prompt. Defaults to true. */
   deferSessionCreate?: boolean
   /**
@@ -140,6 +159,7 @@ export const Config: z<Config> = z.object({
   snapshotMaxChars: z.number().step(1).min(MIN_SNAPSHOT_MAX_CHARS).default(DEFAULT_SNAPSHOT_MAX_CHARS),
   maxInteractiveItems: z.number().step(1).min(1).default(DEFAULT_MAX_INTERACTIVE_ITEMS),
   sessionWorkspacePath: z.string().default(DEFAULT_SESSION_WORKSPACE_PATH),
+  sessionWorkspaceTitle: z.string().default(DEFAULT_SESSION_WORKSPACE_TITLE),
   deferSessionCreate: z.boolean().default(DEFAULT_DEFER_SESSION_CREATE),
   openPagesForUser: z.boolean().default(DEFAULT_OPEN_PAGES_FOR_USER),
 })
@@ -166,6 +186,7 @@ export function resolveConfig(config: Config): ResolvedConfig {
     snapshotMaxChars: config.snapshotMaxChars ?? DEFAULT_SNAPSHOT_MAX_CHARS,
     maxInteractiveItems: config.maxInteractiveItems ?? DEFAULT_MAX_INTERACTIVE_ITEMS,
     sessionWorkspacePath: config.sessionWorkspacePath ?? DEFAULT_SESSION_WORKSPACE_PATH,
+    sessionWorkspaceTitle: config.sessionWorkspaceTitle ?? DEFAULT_SESSION_WORKSPACE_TITLE,
     deferSessionCreate: config.deferSessionCreate ?? DEFAULT_DEFER_SESSION_CREATE,
     openPagesForUser: config.openPagesForUser ?? DEFAULT_OPEN_PAGES_FOR_USER,
   }
@@ -210,6 +231,7 @@ function mountBridge(
     withSessionWorkspace(
       hostApi,
       resolved.sessionWorkspacePath,
+      resolved.sessionWorkspaceTitle,
       message => { ctx.logger.warn(message) },
     ),
     resolved.deferSessionCreate,

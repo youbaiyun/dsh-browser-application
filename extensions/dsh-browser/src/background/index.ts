@@ -355,7 +355,7 @@ function notifyFirstRun(): void {
   void Promise.resolve(chrome.notifications.create(ONBOARDING_NOTIFICATION_ID, {
     type: 'basic',
     iconUrl: chrome.runtime.getURL('assets/icons/icon128.png'),
-    title: zh ? 'dsh 浏览器的手与眼已安装' : 'dsh Browser Hand & Eye is installed',
+    title: zh ? 'dsh 浏览器扩展已安装' : 'dsh Browser Extension is installed',
     message: zh
       ? `它没在工具栏上：点地址栏右边的${menu}图标，把这一项固定，以后就好找了。点这条消息可以直接打开侧边栏。`
       : `It is not on the toolbar yet: open the ${menu} menu beside the address bar and pin it, so you can find it later. Click this message to open the side panel now.`,
@@ -950,7 +950,7 @@ function notifyApproval(request: ApprovalRequest): void {
   void Promise.resolve(chrome.notifications.create(approvalNotificationId(request.id), {
     type: 'basic',
     iconUrl: chrome.runtime.getURL('assets/icons/icon128.png'),
-    title: zh ? 'dsh 浏览器操作等待确认' : 'dsh browser action awaiting approval',
+    title: zh ? 'dsh 浏览器扩展等待确认' : 'dsh Browser Extension awaits approval',
     message: zh
       ? `${request.summary} —— 点击打开侧边栏，并在 ${minutes} 分钟内允许或拒绝。`
       : `${request.summary} — click to open the side panel and allow or deny within ${minutes} minutes.`,

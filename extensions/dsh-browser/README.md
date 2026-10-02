@@ -1,4 +1,4 @@
-# dsh Browser Hand & Eye (Chrome and Firefox MV3)
+# dsh Browser Extension (Chrome and Firefox MV3)
 
 English | [中文](README.zh.md)
 

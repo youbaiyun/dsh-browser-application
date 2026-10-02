@@ -5,17 +5,20 @@
   `#control-root` is the mount point, and it carries the height that every
   descendant resolves against, so it must stay styled.
 
-  The extension page CSP is `script-src 'self'; object-src 'self'`, so this
-  document loads exactly one module and one stylesheet and inlines nothing —
-  no inline <script>, no inline <style>, no event-handler attributes. Interface
-  icons are inline SVG built in JS.
+  The page's content security policy is declared in `manifest.json`, not here,
+  and it permits exactly three things: scripts and objects from this extension,
+  and outbound connections to loopback only (`connect-src ws://127.0.0.1:*
+  http://127.0.0.1:*`) — which is how the panel reaches the desktop app and
+  nothing else. So this document loads one module and one stylesheet and inlines
+  nothing: no inline <script>, no inline <style>, no event-handler attributes.
+  Interface icons are inline SVG built in JS.
 -->
 <html lang="zh">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
-    <title>dsh 浏览器的手与眼</title>
+    <title>dsh 浏览器扩展（应用端）</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
