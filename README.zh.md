@@ -21,7 +21,7 @@
 | **离线包**（自己加载 / 商店上传用） | [Releases](https://github.com/youbaiyun/dsh-browser-crossplatform/releases) 里的两个 zip |
 
 ```sh
-# 从 npm 装（包发布后可用）：
+# 从 npm 装（已发布：dsh-browser-crossplatform@0.38.2）：
 dsh plugin --profile desktop add dsh-browser-crossplatform   # 命令行版 dsh web 用 --profile web
 
 # 或者直接从这个仓库装，不经过 npm：
@@ -32,7 +32,7 @@ dsh plugin --profile desktop add link:<clone>/packages/bridge
 **一步步的傻瓜式步骤（含"怎么确认装好了"）见 [docs/INSTALL.md](docs/INSTALL.md)。**
 
 扩展本体从浏览器商店安装（或按下面的构建一节自行加载未打包版本）；上面的包是桌面端那一半，
-插件设置页就在 dsh 里，名字是「dsh 浏览器设置」。
+插件设置页就在 dsh 里，标题是「dsh 浏览器扩展（全端）的桌面端一半」。
 
 ## 结构（四个包同一个版本号 `0.38.2`）
 

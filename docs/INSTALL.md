@@ -51,7 +51,7 @@ dsh plugin --profile desktop add dsh-browser-crossplatform
 **The profile name must match the one you actually use**: dsh **desktop** uses `desktop`; the command-line `dsh web` uses `web`.
 (If unsure, check the directory names under `~/.dsh/profiles/`.)
 
-After installing, **restart dsh once**. After the restart, the bridge plugin's settings page appears, named 「**dsh 浏览器设置**」.
+After installing, **restart dsh once**. After the restart, the bridge plugin's settings page appears, titled 「**dsh 浏览器扩展（全端）的桌面端一半**」.
 
 ## Step 3: confirm it is installed (30 seconds)
 
@@ -85,7 +85,7 @@ When you no longer need it, switch it back off.
 | Symptom | Most likely cause |
 |---|---|
 | The panel keeps showing "not connected" | Step 2 was not done, or **dsh was not restarted** afterwards |
-| 「dsh 浏览器设置」 is not listed in the plugin settings page | The `--profile` name is not the one your desktop uses |
+| 「dsh 浏览器扩展（全端）的桌面端一半」 is not listed in the plugin settings page | The `--profile` name is not the one your desktop uses |
 | The panel connects, but the model says the page is empty | Try refreshing the page once and reading it again (restricted pages such as `chrome://` cannot be read; that is normal) |
 | Image viewing is enabled but it reports unavailable | The key from step 4 has not been configured yet |
 

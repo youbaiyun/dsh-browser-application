@@ -49,7 +49,7 @@ dsh plugin --profile desktop add dsh-browser-crossplatform
 **profile 名要和你实际用的一致**：dsh **桌面端**用 `desktop`；命令行版 `dsh web` 用 `web`。
 （不确定就看你机器上的 `~/.dsh/profiles/` 目录里叫什么。）
 
-装完**重启一次 dsh**。重启后插件设置页会出现，名字是「**dsh 浏览器设置**」。
+装完**重启一次 dsh**。重启后插件设置页会出现，标题是「**dsh 浏览器扩展（全端）的桌面端一半**」。
 
 ## 第 3 步：确认装好了（30 秒）
 
@@ -83,7 +83,7 @@ dsh plugin --profile desktop add dsh-browser-crossplatform
 | 现象 | 多半是 |
 |---|---|
 | 面板一直显示"未连接" | 第 2 步没做，或做完**没重启** dsh |
-| 插件设置页里找不到「dsh 浏览器设置」 | `--profile` 的名字不是你桌面端用的那个 |
+| 插件设置页里找不到「dsh 浏览器扩展（全端）的桌面端一半」 | `--profile` 的名字不是你桌面端用的那个 |
 | 面板能连、但模型说页面是空的 | 页面试试刷新一次再读（受限页面如 `chrome://` 读不到，属正常） |
 | 开了看图却提示不可用 | 第 4 步的密钥还没配好 |
 

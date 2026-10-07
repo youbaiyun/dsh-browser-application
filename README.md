@@ -21,7 +21,7 @@ Three routes — pick any one:
 | **Offline packages** (to load yourself / upload to the store) | The two zips under [Releases](https://github.com/youbaiyun/dsh-browser-crossplatform/releases) |
 
 ```sh
-# From the registry (once the package is published):
+# From the npm registry (published: dsh-browser-crossplatform@0.38.2):
 dsh plugin --profile desktop add dsh-browser-crossplatform   # the CLI dsh web uses --profile web
 
 # Or straight from this repository, with no registry involved:
@@ -32,7 +32,7 @@ dsh plugin --profile desktop add link:<clone>/packages/bridge
 **Step-by-step foolproof instructions (including "how to confirm it is installed") are in [docs/INSTALL.md](docs/INSTALL.md).**
 
 The extension itself is installed from the browser extension store (or load the unpacked build yourself following the build section below); the package above is the bridge plugin,
-and its settings page lives inside dsh, named 「dsh 浏览器设置」.
+and its settings page lives inside dsh, titled 「dsh 浏览器扩展（全端）的桌面端一半」.
 
 ## Structure (four packages share the same version number `0.38.2`)
 
