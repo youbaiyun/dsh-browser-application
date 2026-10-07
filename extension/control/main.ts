@@ -157,10 +157,15 @@ export function stateText(state: TimelineEntry['state'], locale: UiLocale): stri
 export function sessionLabel(session: SessionSummary, copy: ControlCopy): string {
   const title = session.title.trim()
   const name = title === '' ? copy.settings.conversationUntitled : title
-  // The running marker comes before the timestamp and after the name, so a narrowed
-  // picker truncates the timestamp rather than the one fact that identifies the
-  // conversation the desktop is working in.
+  // The opening prompt is what actually distinguishes two conversations, because
+  // titles collide by design — the desktop names a conversation after its subject, so
+  // two conversations about the same video get near-identical names. It is dropped
+  // only when it would merely repeat the title.
+  const preview = session.preview.trim()
   const parts = [name]
+  if (preview !== '' && preview !== name) parts.push(preview)
+  // The running marker comes before the timestamp, so a narrowed picker truncates the
+  // timestamp rather than the facts that identify the conversation.
   if (session.running) parts.push(copy.settings.conversationRunning)
   if (session.updatedAt > 0) {
     const when = new Date(session.updatedAt)

@@ -1454,7 +1454,14 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * crosses the bridge from another process, so a shape change must degrade to a
  * shorter list rather than to a crash or a bogus session id.
  *
- * @returns conversations, newest first.
+ * **Sub-agent conversations are dropped.** Every delegated sub-agent is a Session of
+ * its own, titled with its own instructions, so the list arrived full of entries
+ * called `You are a senior code…` and `You are auditing…` — three identical-looking
+ * rows per audit round, none of which the user can meaningfully continue from the
+ * panel. The desktop tags them `origin: 'subagent'` with a `parentSessionId`, and the
+ * list is about conversations the user holds, not about the machinery behind them.
+ *
+ * @returns conversations worth choosing from, running first then newest first.
  */
 async function listSessions(): Promise<SessionSummary[]> {
   const listed = await gatewayRpc('session.list', {})
@@ -1462,28 +1469,80 @@ async function listSessions(): Promise<SessionSummary[]> {
   const sessions: SessionSummary[] = []
   for (const item of items) {
     if (!isPlainObject(item) || typeof item.sessionId !== 'string' || item.sessionId === '') continue
-    // Untitled conversations are the common case; the desktop uses an empty
-    // string, which the picker renders with a fallback label.
+    // A sub-agent's Session is not a conversation the user can talk to. Matched on
+    // either field: `origin` is the direct statement and `parentSessionId` the
+    // structural one, and a build that publishes only one of them must still filter.
+    if (item.origin === 'subagent' || typeof item.parentSessionId === 'string') continue
+    // `title` is not a top-level field: it lives in `projections.values.title`, so
+    // reading `item.title` found nothing and every conversation in the picker was
+    // labelled "Untitled" — which is why near-identical titles were not the only
+    // problem there. Both spellings are accepted, because a flat one is the obvious
+    // shape for a future build to publish.
     sessions.push({
       sessionId: item.sessionId,
-      title: typeof item.title === 'string' ? item.title : '',
+      title: sessionTitleOf(item),
+      preview: firstPromptOf(item.projections),
       updatedAt: typeof item.updatedAt === 'number' && Number.isFinite(item.updatedAt) ? item.updatedAt : 0,
       running: item.running === true,
     })
   }
   // A conversation with a turn in progress comes first, then newest first.
   //
-  // The running flag is the only signal that identifies the conversation the user is
-  // actually looking at: the list runs to dozens of entries, titles repeat (`You are
-  // a senior code…` appears once per sub-agent), and the desktop publishes no
-  // "currently open" field the panel could read. What it does publish is `running`
-  // for the conversation whose turn is executing, and that one is almost always the
-  // one on screen — so it belongs at the top rather than wherever its timestamp lands.
+  // The desktop publishes no "session I am currently showing" field, so `running` is
+  // the closest thing: the conversation whose turn is executing is nearly always the
+  // one on screen, and after dropping the sub-agents the remaining list is short
+  // enough that newest-first is a usable order on its own.
   sessions.sort((left, right) => {
     if (left.running !== right.running) return left.running ? -1 : 1
     return right.updatedAt - left.updatedAt
   })
   return sessions
+}
+
+/**
+ * A conversation's display name, from whichever field carries it.
+ *
+ * The desktop nests it at `projections.values.title`; a flat `title` is accepted too.
+ * An untitled conversation legitimately has an empty string, which the picker renders
+ * with a fallback label — the point is to tell that case apart from a title that was
+ * simply looked for in the wrong place.
+ *
+ * @param item - one `session.list` entry.
+ * @returns the title, or `''` when the entry carries none.
+ */
+function sessionTitleOf(item: Record<string, unknown>): string {
+  if (typeof item.title === 'string') return item.title
+  const projections = item.projections
+  if (!isPlainObject(projections) || !isPlainObject(projections.values)) return ''
+  const title = projections.values.title
+  return typeof title === 'string' ? title : ''
+}
+
+/**
+ * The opening prompt of a conversation, as one short line.
+ *
+ * Reaches through `projections.values.turnOutline`, which carries the first user
+ * message of each turn and its response summary. Two titles can be near-identical
+ * ("介绍哔哩哔哩罗肖尼视频" against "哔哩哔哩罗肖尼视频介绍") while the prompts behind them
+ * differ plainly, so this is what makes the picker choosable. Every step is
+ * defensive — the shape crosses a process boundary — and an unreadable one yields an
+ * empty string rather than a wrong line.
+ *
+ * @param projections - one `session.list` item's `projections` value.
+ * @returns the first prompt, whitespace-collapsed, or `''` when unavailable.
+ */
+function firstPromptOf(projections: unknown): string {
+  if (!isPlainObject(projections)) return ''
+  const values = projections.values
+  if (!isPlainObject(values) || !Array.isArray(values.turnOutline)) return ''
+  for (const turn of values.turnOutline) {
+    if (!isPlainObject(turn) || typeof turn.prompt !== 'string') continue
+    const prompt = turn.prompt.replace(/\s+/gu, ' ').trim()
+    // Some turns carry an empty prompt (a continuation); keep looking for a real one.
+    if (prompt === '') continue
+    return prompt.length > 80 ? `${prompt.slice(0, 79)}…` : prompt
+  }
+  return ''
 }
 
 /**

@@ -842,16 +842,40 @@ describe('conversation routing', () => {
     expect(sent(socket).filter((frame) => frame.t === 'rpc' && frame.method === 'session.create')).toHaveLength(0)
   })
 
-  it('lists the desktop conversations newest first', async () => {
+  it('lists the desktop conversations that are worth choosing, running first', async () => {
     const { control, socket } = await boot()
     control.onMessage.emit({ type: 'session.list', id: 'l1' })
     const call = await waitForRpc(socket, 'session.list')
     answerRpc(socket, call, {
       ok: true,
       value: {
+        // The shape the desktop really sends: the title lives in
+        // `projections.values.title`, not at the top level, and a sub-agent is tagged
+        // with `origin` plus a parent.
         items: [
-          { sessionId: 'old', title: 'older', updatedAt: 1_000, running: false },
-          { sessionId: 'new', title: 'newer', updatedAt: 9_000, running: true },
+          {
+            sessionId: 'old',
+            updatedAt: 1_000,
+            running: false,
+            projections: { values: { title: 'older', turnOutline: [{ prompt: 'do the old thing', seq: 4 }] } },
+          },
+          {
+            sessionId: 'new',
+            updatedAt: 9_000,
+            running: true,
+            projections: { values: { title: 'newer', turnOutline: [{ prompt: '', seq: 1 }, { prompt: 'do the new thing', seq: 2 }] } },
+          },
+          // A delegated sub-agent is a Session of its own, but not a conversation the
+          // user can pick up from the panel: it would appear once per delegation,
+          // titled with its own instructions.
+          {
+            sessionId: 'sub',
+            updatedAt: 8_000,
+            running: false,
+            origin: 'subagent',
+            parentSessionId: 'new',
+            projections: { values: { title: 'You are a senior code reviewer' } },
+          },
           // Junk must be dropped, not rendered or routed to.
           { sessionId: '', title: 'nameless', updatedAt: 5_000 },
           { title: 'no id at all', updatedAt: 5_000 },
@@ -864,9 +888,11 @@ describe('conversation routing', () => {
         type: 'session.list',
         id: 'l1',
         ok: true,
+        // Running first, then newest first; `preview` is the first *non-empty* prompt,
+        // and the title comes from the projection.
         sessions: [
-          { sessionId: 'new', title: 'newer', updatedAt: 9_000, running: true },
-          { sessionId: 'old', title: 'older', updatedAt: 1_000, running: false },
+          { sessionId: 'new', title: 'newer', preview: 'do the new thing', updatedAt: 9_000, running: true },
+          { sessionId: 'old', title: 'older', preview: 'do the old thing', updatedAt: 1_000, running: false },
         ],
       })
     })

@@ -645,8 +645,8 @@ describe('rendered panel', () => {
 
   it('routes only after a conversation is actually chosen', () => {
     const sessions = [
-      { sessionId: 's-2', title: '部署排查', updatedAt: Date.now(), running: false },
-      { sessionId: 's-1', title: '', updatedAt: Date.now() - 60_000, running: true },
+      { sessionId: 's-2', title: '部署排查', preview: '帮我看看这个部署错误', updatedAt: Date.now(), running: false },
+      { sessionId: 's-1', title: '', preview: '', updatedAt: Date.now() - 60_000, running: true },
     ]
     const { app, root, port } = mount(state({
       settings: { ...SETTINGS_DEFAULTS, sessionScope: 'pinned', pinnedSessionId: null },
@@ -744,6 +744,28 @@ describe('rendered panel', () => {
     expect(classifyInput('看看这个页面')).toMatchObject({ kind: 'prompt' })
   })
 
+  it('puts the opening prompt in the picker, because titles collide', () => {
+    // Two conversations about the same subject get near-identical desktop titles, and
+    // a picker that shows only those is a coin flip. The opening prompt is what tells
+    // them apart, and it is dropped only when it would merely repeat the title.
+    const copy = controlCopy('zh')
+    const at = new Date(2026, 0, 2, 3, 4).getTime()
+    expect(sessionLabel(
+      { sessionId: 's', title: '看视频', preview: '打开哔哩哔哩罗肖尼的视频并介绍', updatedAt: at, running: true },
+      copy,
+    )).toBe('看视频 · 打开哔哩哔哩罗肖尼的视频并介绍 · 进行中 · 1/2 03:04')
+    // Repeating the title would waste the one line the dropdown has.
+    expect(sessionLabel(
+      { sessionId: 's', title: '看视频', preview: '看视频', updatedAt: 0, running: false },
+      copy,
+    )).toBe('看视频')
+    // No prompt disclosed: the title has to carry it alone.
+    expect(sessionLabel(
+      { sessionId: 's', title: '看视频', preview: '  ', updatedAt: 0, running: false },
+      copy,
+    )).toBe('看视频')
+  })
+
   it('marks a running conversation in the picker, ahead of its timestamp', () => {
     // The picker lists dozens of conversations whose titles repeat — every sub-agent
     // conversation is titled with its own prompt. `running` is the one signal that
@@ -752,13 +774,13 @@ describe('rendered panel', () => {
     // timestamp is what gets truncated.
     const copy = controlCopy('zh')
     const at = new Date(2026, 0, 2, 3, 4).getTime()
-    expect(sessionLabel({ sessionId: 's', title: '看视频', updatedAt: at, running: true }, copy))
+    expect(sessionLabel({ sessionId: 's', title: '看视频', preview: '', updatedAt: at, running: true }, copy))
       .toBe('看视频 · 进行中 · 1/2 03:04')
-    expect(sessionLabel({ sessionId: 's', title: '看视频', updatedAt: at, running: false }, copy))
+    expect(sessionLabel({ sessionId: 's', title: '看视频', preview: '', updatedAt: at, running: false }, copy))
       .toBe('看视频 · 1/2 03:04')
-    expect(sessionLabel({ sessionId: 's', title: '看视频', updatedAt: 0, running: true }, copy))
+    expect(sessionLabel({ sessionId: 's', title: '看视频', preview: '', updatedAt: 0, running: true }, copy))
       .toBe('看视频 · 进行中')
-    expect(sessionLabel({ sessionId: 's', title: '  ', updatedAt: 0, running: false }, copy))
+    expect(sessionLabel({ sessionId: 's', title: '  ', preview: '', updatedAt: 0, running: false }, copy))
       .toBe('未命名')
   })
 })

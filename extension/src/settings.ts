@@ -322,8 +322,23 @@ export type ControlRequest =
 /** One desktop conversation, as much as the bridge discloses about it. */
 export interface SessionSummary {
   sessionId: string
-  /** Display name; the desktop leaves this empty for an untitled conversation. */
+  /**
+   * Display name; the desktop leaves this empty for an untitled conversation.
+   *
+   * It arrives nested at `projections.values.title` rather than at the top level,
+   * which is worth knowing before adding another reader of it.
+   */
   title: string
+  /**
+   * The first thing the user typed in this conversation, trimmed to one line.
+   *
+   * The picker needs it because titles collide: the desktop names a conversation after
+   * its subject, so two conversations about the same video get near-identical titles
+   * ("介绍哔哩哔哩罗肖尼视频" against "哔哩哔哩罗肖尼视频介绍"), and an untitled conversation
+   * has none at all. The opening prompt says what the conversation actually is. Empty
+   * when the desktop disclosed none.
+   */
+  preview: string
   /** Epoch milliseconds of the last update, for ordering the picker. */
   updatedAt: number
   running: boolean
