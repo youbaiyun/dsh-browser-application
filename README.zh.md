@@ -58,7 +58,7 @@ extension           Chrome/Firefox MV3 扩展本体
 CI 会构建两个浏览器目标并跑完全部测试（含真启动 Chromium 的端到端用例）；
 Windows 在本机验过；macOS 未被 CI 覆盖，但它与 Linux 同为 POSIX，且平台相关面就是那一个模块。
 
-**回环免令牌只绑定具名的扩展 id。** 桥接正常用 bearer 令牌认证，但来自扩展自身的回环升级会跳过它，以保持零配置发现。这条豁免不是"任何 `chrome-extension://` 来源"——机器上每个其他扩展都有这样一个来源——而是与 `extensionId` 精确相等；该配置项是逗号分隔的列表，默认列出两个 id：本仓 manifest `key` 推出的 `kdhkdgfcinfkmogifamoapmheihhcjfk`，以及 Chrome 应用商店分配的 `agipnijjkpomaannkjkjliggoffdiaf`。两个都要列，是因为商店拒收带 `key` 的清单，于是开发加载与商店安装呈现的是不同来源。你自己的构建请把 id 加进这个列表；把插件配置里的 `extensionId` 设为 `''`，则包括回环在内所有连接都必须出示令牌。
+**回环免令牌只绑定具名的扩展 id。** 桥接正常用 bearer 令牌认证，但来自扩展自身的回环升级会跳过它，以保持零配置发现。这条豁免不是"任何 `chrome-extension://` 来源"——机器上每个其他扩展都有这样一个来源——而是与 `extensionId` 精确相等；该配置项是逗号分隔的列表，默认列出两个 id：本仓 manifest `key` 推出的 `kdhkdgfcinfkmogifamoapmheihhcjfk`，以及 Chrome 应用商店分配的 `agpipnjijkpomaannkijkilggoffdiaf`。两个都要列，是因为商店拒收带 `key` 的清单，于是开发加载与商店安装呈现的是不同来源。你自己的构建请把 id 加进这个列表；把插件配置里的 `extensionId` 设为 `''`，则包括回环在内所有连接都必须出示令牌。
 
 **手机与平板为什么不支持**：Chrome / Edge for Android 不支持第三方扩展；
 Firefox for Android 没有侧边栏这种界面；而且桥接**在关键处只回环**——免令牌通道与特权网关方法

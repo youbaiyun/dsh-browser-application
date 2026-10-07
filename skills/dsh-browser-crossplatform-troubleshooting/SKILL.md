@@ -476,7 +476,7 @@ an extension context can present it. Note what the predicate no longer is: any
 presents one of those, so the match is against the **configured ids**
 (`extensionId`, a comma-separated list defaulting to this repository's development
 id `kdhkdgfcinfkmogifamoapmheihhcjfk`, derived from the manifest's `key`, and the
-Chrome Web Store id `agipnijjkpomaannkjkjliggoffdiaf`). If a user reports "the
+Chrome Web Store id `agpipnjijkpomaannkijkilggoffdiaf`). If a user reports "the
 worker connects but everything is refused", check which id their installed build
 really has at `chrome://extensions` before suspecting the token.
 

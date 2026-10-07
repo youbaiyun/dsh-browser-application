@@ -117,7 +117,7 @@ const DEFAULT_VISION_TIMEOUT_MS = 20_000
  * - `kdhkdg…hcjfk` is derived from the public key this repository's unpacked builds
  *   ship in their manifest (`key`), so a development load and a packaged release of
  *   these archives resolve to it.
- * - `agipnij…diaf` is the id the Chrome Web Store assigned. A store install has no
+ * - `agpipnij…diaf` is the id the Chrome Web Store assigned. A store install has no
  *   `key` — the store rejects a manifest that carries one, because it pins an id the
  *   store does not control — so it presents this origin instead, and without it the
  *   store build would need the token pasted in by hand.
@@ -130,7 +130,7 @@ const DEFAULT_VISION_TIMEOUT_MS = 20_000
  */
 export const DEFAULT_EXTENSION_IDS: readonly string[] = [
   'kdhkdgfcinfkmogifamoapmheihhcjfk',
-  'agipnijjkpomaannkjkjliggoffdiaf',
+  'agpipnjijkpomaannkijkilggoffdiaf',
 ]
 
 /**

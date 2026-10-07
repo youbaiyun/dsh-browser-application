@@ -45,7 +45,7 @@ describe.skipIf(!existsSync(manifestPath))('extension identity', () => {
 
 describe('the token-free origin allowlist', () => {
   const dev = 'kdhkdgfcinfkmogifamoapmheihhcjfk'
-  const store = 'agipnijjkpomaannkjkjliggoffdiaf'
+  const store = 'agpipnjijkpomaannkijkilggoffdiaf'
 
   it('accepts every named id, so a store install needs no configuration', () => {
     // One build has two possible ids: a development load is pinned by the manifest
@@ -84,5 +84,17 @@ describe('the token-free origin allowlist', () => {
   it("defaults to naming both of this project's ids", () => {
     expect(DEFAULT_EXTENSION_IDS).toContain(dev)
     expect(DEFAULT_EXTENSION_IDS).toContain(store)
+  })
+
+  it('names only well-formed extension ids', () => {
+    // A Chrome extension id is exactly 32 characters drawn from a-p. One of the two values here
+    // was 31 characters — a transcription slip when it was first written down — so it could
+    // never match a real install. Nothing noticed, because no store build had ever been
+    // installed: the token-free path had never once been taken. A malformed id is worse than a
+    // missing one, because it reads as though the path works.
+    for (const id of DEFAULT_EXTENSION_IDS) {
+      expect(id, `"${id}" must be 32 characters`).toHaveLength(32)
+      expect(id, `"${id}" must be a-p only`).toMatch(/^[a-p]{32}$/)
+    }
   })
 })

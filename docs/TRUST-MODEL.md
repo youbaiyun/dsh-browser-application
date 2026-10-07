@@ -194,7 +194,7 @@ Stated because a trust document that only lists strengths is marketing:
   setup. The exemption is bound to named extension ids (`extensionId`, a
   comma-separated list; the default names this repository's development id,
   `kdhkdgfcinfkmogifamoapmheihhcjfk`, and the id the Chrome Web Store assigned,
-  `agipnijjkpomaannkjkjliggoffdiaf`), each matched against the exact `Origin`:
+  `agpipnjijkpomaannkijkilggoffdiaf`), each matched against the exact `Origin`:
   another installed extension presenting its own `chrome-extension://…` origin is
   rejected, and so is a local process that sets the header to anything else. A
   process that knows a listed id can still forge the header — this narrows the
