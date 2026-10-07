@@ -17,11 +17,16 @@ Three routes — pick any one:
 | What you want | Where to get it |
 |---|---|
 | **The extension in the browser** (side panel) | Browser extension store ([Chrome] (not yet listed) / [Firefox] (not yet listed)) |
-| **The bridge plugin** (lets dsh talk to the extension) | One command, see below (npm package: [dsh-browser-crossplatform](https://www.npmjs.com/package/dsh-browser-crossplatform)) |
+| **The bridge plugin** (lets dsh talk to the extension) | This repository — [github.com/youbaiyun/dsh-browser-crossplatform](https://github.com/youbaiyun/dsh-browser-crossplatform). One command, see below |
 | **Offline packages** (to load yourself / upload to the store) | The two zips under [Releases](https://github.com/youbaiyun/dsh-browser-crossplatform/releases) |
 
 ```sh
+# From the registry (once the package is published):
 dsh plugin --profile desktop add dsh-browser-crossplatform   # the CLI dsh web uses --profile web
+
+# Or straight from this repository, with no registry involved:
+git clone https://github.com/youbaiyun/dsh-browser-crossplatform
+dsh plugin --profile desktop add link:<clone>/packages/bridge
 ```
 
 **Step-by-step foolproof instructions (including "how to confirm it is installed") are in [docs/INSTALL.md](docs/INSTALL.md).**

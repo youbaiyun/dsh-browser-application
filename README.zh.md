@@ -17,11 +17,16 @@
 | 要什么 | 从哪拿 |
 |---|---|
 | **浏览器里的扩展**（侧边栏面板） | 浏览器扩展商店（[Chrome]（待上架）/ [Firefox]（待上架）） |
-| **桌面端那一半**（让 dsh 与扩展说上话） | 一条命令，见下（npm 包：[dsh-browser-crossplatform](https://www.npmjs.com/package/dsh-browser-crossplatform)） |
+| **桌面端那一半**（让 dsh 与扩展说上话） | 本仓库 —— [github.com/youbaiyun/dsh-browser-crossplatform](https://github.com/youbaiyun/dsh-browser-crossplatform)，一条命令，见下 |
 | **离线包**（自己加载 / 商店上传用） | [Releases](https://github.com/youbaiyun/dsh-browser-crossplatform/releases) 里的两个 zip |
 
 ```sh
+# 从 npm 装（包发布后可用）：
 dsh plugin --profile desktop add dsh-browser-crossplatform   # 命令行版 dsh web 用 --profile web
+
+# 或者直接从这个仓库装，不经过 npm：
+git clone https://github.com/youbaiyun/dsh-browser-crossplatform
+dsh plugin --profile desktop add link:<clone>/packages/bridge
 ```
 
 **一步步的傻瓜式步骤（含"怎么确认装好了"）见 [docs/INSTALL.md](docs/INSTALL.md)。**
