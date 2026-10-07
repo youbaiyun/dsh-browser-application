@@ -42,8 +42,8 @@ who reads only the first three lines should still know whether they want it.
 ```
 全端 DeepSeek Harness 浏览器插件
 
-配套技能包（Skill）：
-https://github.com/youbaiyun/dsh-browser-crossplatform/tree/main/skills/dsh-browser-crossplatform-troubleshooting
+完整项目skill+插件（要有完整项目才能正常使用）地址如下：
+https://github.com/youbaiyun/dsh-browser-crossplatform
 
 ——————————————————————————————
 
@@ -66,51 +66,41 @@ https://github.com/youbaiyun/dsh-browser-crossplatform/tree/main/skills/dsh-brow
 需要先装好桌面端 dsh，并让它在同一台机器上运行。没有 dsh 时，侧边栏会
 显示未连接，不会做任何别的事。
 
-浏览器引擎部分来自 Lum1104/dsh-browser（现更名为 omdsh-dev/dsh-browser，MIT 协议）；侧边栏与交互层是本
+浏览器引擎极少部分来自 Lum1104/dsh-browser（现更名为 omdsh-dev/dsh-browser，MIT 协议）；侧边栏与交互层是本
 版本自己的实现。
 ```
 
 English listing:
 
 ```
-dsh Browser Extension — all-sides support for the dsh desktop app
+dsh Browser Extension — all-sides suppoThe all-platform DeepSeek Harness browser extension
 
-Companion skill:
-https://github.com/youbaiyun/dsh-browser-crossplatform/tree/main/skills/dsh-browser-crossplatform-troubleshooting
+The complete project — skill and extension both — lives here (the extension only works with the full project installed):
+https://github.com/youbaiyun/dsh-browser-crossplatform
 
 ——————————————————————————————
 
-Lets the dsh desktop app work in the browser tab you already have open — in the
-page itself, with your login intact. No separate browser. No screenshots.
+Let the desktop DeepSeek Harness (dsh) drive the browser tab you are already using —
+right here in the page in front of you, signed in as you, with no second browser and no screenshots.
 
-• Reads the page as structured text with numbered controls, so the model acts on
-  the page it was given instead of taking pictures of it.
-• Clicks, types, scrolls, navigates and manages tabs, on the one page you choose.
-• Approval switch. The "act without asking" switch ships ON, so a new install clicks and types without a per-action prompt; turn it off for approval, per-site trust, or allow-once.
-• Passwords and card numbers never leave the page — replaced before anything is
-  sent.
-• A web page cannot impersonate you. What you type in the panel carries an origin
-  marker that page text cannot.
-• The conversation lives in the side panel: you type, it answers, and a multi-step
-  request first appears as a task list that gets ticked off as it works — no
-  dashboard, and no progress bars. Each tool run takes one quiet line.
-• Local only, with one exception: image recognition. It is off by default; when
-  you turn it on and ask about an image, the extension fetches that image's own
-  address — with your login intact, so an image behind a login is readable — and
-  hands the bytes to the desktop app. No server of its own, no telemetry.
+· Read the page: turns a web page into structured text plus a numbered list of controls, and the model acts by number. No screenshots.
+· Look at an image (optional, off by default): reads the one image you point it at. The extension fetches it with your session, so an image only visible after signing in works too; no screenshots, and no full-page capture.
+· Operate the page: click, type, scroll, navigate and manage tabs, only ever on the page you selected.
+· The confirmation switch: "Don't ask again, act directly" ships switched on, so a fresh install does not prompt for every click and keystroke. Turn it off and approvals come back, with per-site trust or a one-connection-only allowance.
+· Passwords and card numbers never leave the page: they are replaced inside the snapshot, so they are not in the text that goes out.
+· A web page cannot impersonate you: every line you type in the side panel carries a provenance marker; anything written by the page does not.
+· The conversation is in the side panel: you say it, it answers. A multi-step task first lays out a task list, and each finished item is ticked off; every tool call takes one line —
+  no dashboard and no progress bar.
+**Supported on**: the dsh desktop app on Windows / macOS / Linux (Node ≥ 20) plus desktop Chrome / Chromium / Edge **116+** or Firefox **140+**; **phones and tablets are not supported** (there is no side panel to put it in).
+· Talks to this machine only: the extension connects to dsh on 127.0.0.1 and nothing else, with no telemetry. The one exception is image look-up — when you switch it on and ask about an image, the extension fetches that image **itself** with your session and hands the bytes to the desktop app. Image look-up is off by default.
 
-Requires the dsh desktop app, running on the same machine. Without it the panel
-says it is not connected and does nothing else.
+It needs the dsh desktop app installed and running on the same machine first. With no dsh
+running, the side panel says it is not connected and does nothing else.
 
-The browser engine comes from Lum1104/dsh-browser (since renamed omdsh-dev/dsh-browser; MIT); the side panel and the
-interaction layer are this build's own.
-```
+A very small part of the browser engine comes from Lum1104/dsh-browser (now renamed omdsh-dev/dsh-browser, MIT); the side panel and the interaction layer are this
+version's own implementation.
 
-## Category
-
-Productivity
-
-## Language
+uage
 
 English (add Chinese (Simplified) as a second locale if submitting the `zh_CN`  
 strings as a separate listing)
