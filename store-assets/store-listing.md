@@ -59,7 +59,7 @@ https://github.com/youbaiyun/dsh-browser-crossplatform/tree/main/skills/dsh-brow
 · 网页不能冒充你：你在侧边栏打的每句话带来源标记，网页里写的带不上。
 · 对话就在侧边栏：你说、它答。多步任务会先列出任务表，做完一条勾掉一条，每次工具调用占一行——
   没有仪表盘，也没有进度条。
-**适配范围**：Windows / macOS / Linux 上的 dsh 桌面端（Node ≥ 20）+ 桌面 Chrome / Chromium / Edge **116+** 或 Firefox **140+**；**手机与平板不支持**（没有侧边栏这种界面，且桥接只回环）。
+**适配范围**：Windows / macOS / Linux 上的 dsh 桌面端（Node ≥ 20）+ 桌面 Chrome / Chromium / Edge **116+** 或 Firefox **140+**；**手机与平板不支持**（没有侧边栏这种界面）。
 · 只连本机：扩展只连 127.0.0.1 上的 dsh，没有遥测。唯一例外是看图——你开启它并问某张
   图时，扩展会带着你的登录态去取那张图**本身**，再把字节交给桌面端。看图默认关闭。
 
