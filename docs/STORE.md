@@ -37,15 +37,20 @@ the id itself.
 
 ### The consequence to expect
 
-**A store install has an id the bridge has never seen**, so the token-free path
-does not apply to it: the connection is rejected until a token is supplied. That
-is the bridge's `extensionId` setting, whose default is
-`DEFAULT_EXTENSION_ID` in `packages/bridge/src/index.ts`.
+**A store install presents an id the development build never had.** The bridge's
+token-free path names the ids it trusts in `extensionId`, and as of 0.38.3 that
+default lists both `DEFAULT_EXTENSION_IDS` entries in
+`packages/bridge/src/index.ts`: the development id the manifest `key` derives, and
+the id the Chrome Web Store assigned. A store install therefore connects with no
+configuration.
 
-After the first accepted upload, the dashboard shows the assigned id. Put it in
-that constant (alongside the existing one, or replacing it once the store listing
-is the primary way people install) so a store install connects without a token.
-Until then, a store user can paste the token from `~/.dsh/ext-bridge-token` into
+Both are named on purpose, and one is not a fallback for the other: the store
+refuses a manifest carrying `key`, so the two builds genuinely present different
+origins and both must be accepted for "install it and it works" to hold either way.
+
+If you ever ship under a third id — a different store, a different signing key —
+add it there, comma-separated, or point `extensionId` at your own list. Until it is
+listed, that build's user can paste the token from `~/.dsh/ext-bridge-token` into
 the panel's settings, which is what the Firefox path already requires.
 
 ## 2. Fill in the listing

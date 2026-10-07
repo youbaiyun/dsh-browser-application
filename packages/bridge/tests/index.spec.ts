@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
-import { apply, assertPositiveInteger, buildVisionClient, BROWSER_PROMPT_MARKER_RULE, BROWSER_PROMPT_PREAMBLE, BROWSER_TASK_LIST_RULE, Config, DEFAULT_EXTENSION_ID, resolveConfig, resolveVisionClient } from '../src/index.ts'
+import { apply, assertPositiveInteger, buildVisionClient, BROWSER_PROMPT_MARKER_RULE, BROWSER_PROMPT_PREAMBLE, BROWSER_TASK_LIST_RULE, Config, DEFAULT_EXTENSION_IDS, resolveConfig, resolveVisionClient } from '../src/index.ts'
 import { VISION_MODEL } from '@dsh-browser/protocol'
 
 /** Minimal context stub: apply only needs the services at registration time. */
@@ -175,8 +175,11 @@ describe('config', () => {
       deferSessionCreate: true,
       // The model opens pages for the user unless the user turns it off.
       openPagesForUser: true,
-      // One named extension may skip the token on loopback; nothing else may.
-      extensionId: DEFAULT_EXTENSION_ID,
+      // The named extensions may skip the token on loopback; nothing else may. Both
+      // the development id (pinned by the manifest `key`) and the Chrome Web Store id
+      // are named, because a store install cannot ship that key and would otherwise
+      // have to be configured by hand.
+      extensionId: DEFAULT_EXTENSION_IDS.join(','),
       ...VISION_DEFAULTS,
       ...LAUNCH_DEFAULTS,
     })

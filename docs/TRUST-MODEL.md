@@ -177,14 +177,17 @@ Stated because a trust document that only lists strengths is marketing:
   running as you on your machine can read it and use the bridge. This protects
   against a web page, not against local malware.
 - **A loopback upgrade from the extension skips that token**, so discovery needs no
-  setup. The exemption is bound to one named extension id
-  (`extensionId`, default `kdhkdgfcinfkmogifamoapmheihhcjfk`), matched against the
-  exact `Origin`: another installed extension presenting its own
-  `chrome-extension://…` origin is rejected, and so is a local process that sets
-  the header to anything else. A process that knows the id can still forge the
-  header — this narrows the exposure from "any extension" to "the named one plus
-  anyone who copies its id", it does not eliminate it. Set `extensionId: ''` to
-  make the token mandatory on every connection.
+  setup. The exemption is bound to named extension ids (`extensionId`, a
+  comma-separated list; the default names this repository's development id,
+  `kdhkdgfcinfkmogifamoapmheihhcjfk`, and the id the Chrome Web Store assigned,
+  `agipnijjkpomaannkjkjliggoffdiaf`), each matched against the exact `Origin`:
+  another installed extension presenting its own `chrome-extension://…` origin is
+  rejected, and so is a local process that sets the header to anything else. A
+  process that knows a listed id can still forge the header — this narrows the
+  exposure from "any extension" to "the listed ones plus anyone who copies an id",
+  it does not eliminate it. Listing two ids rather than one does not widen that
+  meaningfully: both are public, and each is a full 32-character id rather than a
+  prefix. Set `extensionId: ''` to make the token mandatory on every connection.
 - **Firefox always presents the token** (`moz-extension://` carries a per-install
   UUID rather than the manifest's stable Gecko id), so there is no token-free path
   for that browser.

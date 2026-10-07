@@ -120,6 +120,13 @@ export class BridgeClient {
    * Drop an in-progress reconnect when its UI lease disappears, while keeping
    * an authenticated socket alive for background approvals already enabled by
    * the user. A later socket loss will still consult shouldReconnect().
+   *
+   * Deliberately not called anywhere yet, and left in place rather than deleted. The
+   * caller it is written for is a UI lease this extension does not have: the control
+   * strip is a side panel whose lifetime is the browser's, not a document's, and the
+   * one state that could act as a lease — `enabled` in settings — already stops the
+   * client outright. Wiring it to something that is not a lease would disconnect a
+   * user who merely closed a popup, so the unused hook is the safer of the two.
    */
   suspendReconnect(): void {
     if (this.state === 'connected') return

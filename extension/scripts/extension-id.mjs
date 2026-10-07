@@ -3,9 +3,14 @@
  *
  * Chrome derives an unpacked/store id from the manifest's `key` (the first 16
  * bytes of the SHA-256 of the DER public key, mapped 0-9a-f → a-p). The bridge
- * binds its token-free loopback path to exactly that id, so the two must agree:
- * this is the check that keeps `DEFAULT_EXTENSION_ID` in
- * `packages/bridge/src/index.ts` honest instead of a remembered string.
+ * binds its token-free loopback path to the ids named in `extensionId`, and the
+ * first entry of `DEFAULT_EXTENSION_IDS` in `packages/bridge/src/index.ts` must
+ * equal what this prints: this is the check that keeps it honest instead of a
+ * remembered string.
+ *
+ * A `--store` build has no `key` — the Chrome Web Store refuses it — so it prints
+ * the id the store assigned instead: `agipnijjkpomaannkjkjliggoffdiaf`, the second
+ * entry of that list.
  *
  * Usage: node extension/scripts/extension-id.mjs [dist|dist-firefox]
  */

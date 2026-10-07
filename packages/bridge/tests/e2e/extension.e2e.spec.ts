@@ -35,7 +35,7 @@ import { chromium, type BrowserContext, type LaunchPersistentContextOptions } fr
 import { MAX_DESC_CHARS, THINKING_OFF } from '@dsh-browser/protocol'
 import { ImageRelay } from '../../src/image-relay.ts'
 import { BridgeServer } from '../../src/server.ts'
-import { DEFAULT_EXTENSION_ID } from '../../src/index.ts'
+import { DEFAULT_EXTENSION_IDS } from '../../src/index.ts'
 import { launchBrowser } from '../../src/browser-launch.ts'
 import { VisionClient } from '../../src/vision.ts'
 import type { BrowserHostApi, HostRpcCall, HostRpcResult } from '../../src/host-api.ts'
@@ -215,7 +215,7 @@ beforeAll(async () => {
     // Same as production: the built extension's manifest `key` derives this id,
     // and it is what lets the zero-config path skip the token. Passing it here
     // keeps the suite testing that path instead of the token fallback.
-    extensionId: DEFAULT_EXTENSION_ID,
+    extensionId: DEFAULT_EXTENSION_IDS[0]!,
     api,
     toolTimeoutMs: 20_000,
     caps: { textOnly: true, snapshotMaxChars: 32_000, maxInteractiveItems: 60 },
@@ -496,7 +496,7 @@ describe.skipIf(!hasExtensionBuild || process.env.PLAYWRIGHT_CHROMIUM_PATH === u
     }
     const bridge = new BridgeServer({
       token: TOKEN,
-      extensionId: DEFAULT_EXTENSION_ID,
+      extensionId: DEFAULT_EXTENSION_IDS[0]!,
       api,
       toolTimeoutMs: 20_000,
       caps: { textOnly: true, snapshotMaxChars: 32_000, maxInteractiveItems: 60 },

@@ -107,16 +107,29 @@ const DEFAULT_VISION_BASE_URL = 'https://api.deepseek.com/v1'
 const DEFAULT_VISION_TIMEOUT_MS = 20_000
 
 /**
- * Chrome extension id allowed to skip the bearer token on a loopback upgrade.
+ * Chrome extension ids allowed to skip the bearer token on a loopback upgrade.
  *
- * Derived from the public key the extension ships in its manifest (`key`), so an
- * unpacked build and a store build resolve to the same id. Without it the
- * zero-config path would have to accept *any* `chrome-extension://` origin —
- * which is every other extension on the machine, not this one. Override it for a
- * build with a different key, or set it to an empty string to require the token
- * on every connection including loopback.
+ * Several are listed because one build has several possible ids, and the point of the
+ * zero-config path is that a user who installs the extension simply works:
+ *
+ * - `kdhkdg…hcjfk` is derived from the public key this repository's unpacked builds
+ *   ship in their manifest (`key`), so a development load and a packaged release of
+ *   these archives resolve to it.
+ * - `agipnij…diaf` is the id the Chrome Web Store assigned. A store install has no
+ *   `key` — the store rejects a manifest that carries one, because it pins an id the
+ *   store does not control — so it presents this origin instead, and without it the
+ *   store build would need the token pasted in by hand.
+ *
+ * Neither is a secret: an extension id is visible in `chrome://extensions`. What the
+ * list is defending against is the *rest* of the machine — without it, the bypass
+ * would have to accept any `chrome-extension://` origin, which is every other
+ * extension installed. Configure it to add your own build's id, or set it to an empty
+ * string to require the token on every connection, loopback included.
  */
-export const DEFAULT_EXTENSION_ID = 'kdhkdgfcinfkmogifamoapmheihhcjfk'
+export const DEFAULT_EXTENSION_IDS: readonly string[] = [
+  'kdhkdgfcinfkmogifamoapmheihhcjfk',
+  'agipnijjkpomaannkjkjliggoffdiaf',
+]
 
 /**
  * Prompt rule used while {@link Config.openPagesForUser} is on.
@@ -253,11 +266,11 @@ export interface Config {
   /** Per-image timeout in ms. Defaults to 20000. */
   visionTimeoutMs?: number
   /**
-   * The one Chrome extension id allowed to skip the bearer token on loopback.
+   * Chrome extension ids allowed to skip the bearer token on loopback, comma-separated.
    *
-   * Set from the extension's manifest `key`; the default names this repository's
-   * build. An empty string disables the bypass entirely and makes the token
-   * mandatory everywhere.
+   * Defaults to this repository's development id and the Chrome Web Store id, which is
+   * what makes a store install work with no configuration. An empty string disables
+   * the bypass entirely and makes the token mandatory everywhere.
    */
   extensionId?: string
   /**
@@ -301,8 +314,8 @@ export interface Config {
 
 export const Config: z<Config> = z.object({
   token: z.string().description('扩展连接本插件时必须出示的令牌。桌面端绑定扩展时会替你填好。'),
-  extensionId: z.string().default(DEFAULT_EXTENSION_ID)
-    .description('允许免令牌连接的回环扩展 id（Chrome 扩展页地址里那一串字符）。留空则所有连接都必须出示令牌。'),
+  extensionId: z.string().default(DEFAULT_EXTENSION_IDS.join(','))
+    .description('允许免令牌连接的回环扩展 id，多个用英文逗号分隔（Chrome 扩展页地址里那一串字符）。留空则所有连接都必须出示令牌。'),
   browserExecutablePath: z.string().default('')
     .description('浏览器没开时由桥接启动哪一个：留空则自动探测 Chrome/Edge/Brave/Chromium/Firefox 的常见安装位置。'),
   extensionPath: z.string().default('')
@@ -390,7 +403,7 @@ export function resolveExtensionPath(configured: string, here: string = import.m
 export function resolveConfig(config: Config): ResolvedConfig {
   const resolved: ResolvedConfig = {
     ...(config.token === undefined ? {} : { token: config.token }),
-    extensionId: config.extensionId ?? DEFAULT_EXTENSION_ID,
+    extensionId: config.extensionId ?? DEFAULT_EXTENSION_IDS.join(','),
     toolTimeoutMs: config.toolTimeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS,
     snapshotMaxChars: config.snapshotMaxChars ?? DEFAULT_SNAPSHOT_MAX_CHARS,
     maxInteractiveItems: config.maxInteractiveItems ?? DEFAULT_MAX_INTERACTIVE_ITEMS,

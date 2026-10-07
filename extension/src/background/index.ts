@@ -702,6 +702,13 @@ async function startBridge(): Promise<void> {
           // A "restart dsh" notice described the connection that produced it; this
           // one has ended, so the claim is no longer known to hold.
           followConnectionChanged()
+          // A relay round trip in flight cannot be answered by a socket that is gone.
+          // Settle it with the reason instead of letting it wait out its timeout.
+          visionCoordinator?.relayLost('bridge-closed')
+          // An approval the user can no longer answer must not stay open. Losing the
+          // connection closes the control strip, so the decision has nowhere to come
+          // from; dropping it is honest, and a reconnect re-asks.
+          approvals.cancelAll()
         }
         broadcastState()
       },

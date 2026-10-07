@@ -42,6 +42,18 @@ are listed only where this fork has something to say about them; see
     that the one they are looking at works. Requesting a follow no longer delays the
     picker's acknowledgement: the switch is local and already done.
 
+- **A Chrome Web Store install connects with no configuration.** `extensionId` now
+  takes a comma-separated list of ids (`DEFAULT_EXTENSION_IDS`), and the default names
+  two: this repository's development id — the one the manifest `key` derives — and
+  `agipnijjkpomaannkjkjliggoffdiaf`, the id the Chrome Web Store assigned. One build
+  genuinely has two possible ids, because the store refuses a manifest carrying `key`
+  and then assigns its own, so a development load and a store install present
+  different origins. Previously only the development id was named, which meant every
+  store user had to paste a token in by hand. Matching is still exact per entry — an
+  unlisted id, a *prefix* of a listed one, another scheme, and an empty configuration
+  are all refused, which is what keeps the bypass from becoming "any extension
+  installed".
+
 ### Fixed
 
 - **A prompt could be delivered to the conversation the user had just left.** Creating

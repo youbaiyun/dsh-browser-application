@@ -469,6 +469,21 @@ export class VisionCoordinator {
     return this.relay.handleFrame(frame)
   }
 
+  /**
+   * Settle every recognition waiting on the desktop, because the socket is gone.
+   *
+   * Called when the connection is lost. Without it a relay round trip in progress
+   * waits out its full timeout for an answer that cannot arrive: the caller's abort
+   * signal usually saves it, but a call whose caller never aborts would leave the
+   * model holding a `pending` marker for a minute. Settling now costs nothing and
+   * reports the same thing the socket drop means.
+   *
+   * @param code - the failure code to settle them with; it doubles as the message.
+   */
+  relayLost(code: string): void {
+    this.relay.failAll(code, false)
+  }
+
   /** Descriptions remembered, and what failed. */
   stats(): ReturnType<ImageCache['stats']> {
     return this.cache.stats()

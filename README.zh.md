@@ -58,7 +58,7 @@ extension           Chrome/Firefox MV3 扩展本体
 CI 会构建两个浏览器目标并跑完全部测试（含真启动 Chromium 的端到端用例）；
 Windows 在本机验过；macOS 未被 CI 覆盖，但它与 Linux 同为 POSIX，且平台相关面就是那一个模块。
 
-**回环免令牌只绑定一个扩展 id。** 桥接正常用 bearer 令牌认证，但来自扩展自身的回环升级会跳过它，以保持零配置发现。这条豁免不是"任何 `chrome-extension://` 来源"——机器上每个其他扩展都有这样一个来源——而是与 `extensionId` 精确相等（默认 `kdhkdgfcinfkmogifamoapmheihhcjfk`，即本仓 manifest `key` 推出的 id）。把插件配置里的 `extensionId` 设为 `''`，则包括回环在内所有连接都必须出示令牌。
+**回环免令牌只绑定具名的扩展 id。** 桥接正常用 bearer 令牌认证，但来自扩展自身的回环升级会跳过它，以保持零配置发现。这条豁免不是"任何 `chrome-extension://` 来源"——机器上每个其他扩展都有这样一个来源——而是与 `extensionId` 精确相等；该配置项是逗号分隔的列表，默认列出两个 id：本仓 manifest `key` 推出的 `kdhkdgfcinfkmogifamoapmheihhcjfk`，以及 Chrome 应用商店分配的 `agipnijjkpomaannkjkjliggoffdiaf`。两个都要列，是因为商店拒收带 `key` 的清单，于是开发加载与商店安装呈现的是不同来源。你自己的构建请把 id 加进这个列表；把插件配置里的 `extensionId` 设为 `''`，则包括回环在内所有连接都必须出示令牌。
 
 **手机与平板为什么不支持**：Chrome / Edge for Android 不支持第三方扩展；
 Firefox for Android 没有侧边栏这种界面；而且桥接**在关键处只回环**——免令牌通道与特权网关方法
@@ -202,7 +202,7 @@ e2e 需要一个仍遵守 `--load-extension` 的浏览器——Playwright 自带
 
 **提示注入不变量，现在有断言了**：组装给模型的提示必须保持纯 ASCII，这样网页没有同形字可以冒充浏览器面板发言。两半都是导出的具名常量（`packages/bridge/src/index.ts` 的 `BROWSER_PROMPT_PREAMBLE` / `BROWSER_PROMPT_MARKER_RULE`），`packages/bridge/tests/index.spec.ts` 会在任一半出现非 ASCII 字符、或开始把标记本身抄进提示时失败。
 
-**身份不变量同样有断言**：桥接的免令牌通道只绑定一个扩展 id，两个测试从两个方向守住这条绑定——`packages/bridge/tests/extension-identity.spec.ts` 从 `extension/manifest.json` 的 `key` 重算 id 并与 `DEFAULT_EXTENSION_ID` 比对（扩展不在同级目录时——例如从 npm 单独安装插件——自动跳过），`packages/bridge/tests/origin-gate.spec.ts` 钉死"只有这个精确 Origin 可免令牌"的判据。`extension/tests/versions.spec.ts` 保持四个包版本一致；`node extension/scripts/extension-id.mjs` 可以打印某个构建的 key 实际推出的 id，便于人工核对。
+**身份不变量同样有断言**：桥接的免令牌通道只绑定具名的扩展 id，测试从两个方向守住这条绑定——`packages/bridge/tests/extension-identity.spec.ts` 从 `extension/manifest.json` 的 `key` 重算 id 并与 `DEFAULT_EXTENSION_IDS` 的第一项比对（扩展不在同级目录时——例如从 npm 单独安装插件——自动跳过），同时断言本项目两个 id 都在默认列表里，并断言未列出的 id、已列出 id 的前缀、其它 scheme、以及空配置**都仍被拒**；`packages/bridge/tests/origin-gate.spec.ts` 钉死"只有列表中精确的 Origin 可免令牌"的判据。`extension/tests/versions.spec.ts` 保持四个包版本一致；`node extension/scripts/extension-id.mjs` 可以打印某个构建的 key 实际推出的 id，便于人工核对。
 
 ## 许可
 

@@ -126,9 +126,12 @@ The worker is not talking to the bridge at all. In order of likelihood:
    address — see Step 3.
 5. **A stale or wrong token, or an id mismatch.** On Firefox or a non-loopback
    address the token is mandatory. On Chrome-over-loopback the token is skipped
-   only when the Origin is exactly `chrome-extension://<extensionId>`, so an
-   extension built with a different manifest `key` (or a plugin config whose
-   `extensionId` was changed) is refused with close code 4002.
+   only when the Origin is exactly `chrome-extension://<one of the configured ids>`,
+   so an extension built with a different manifest `key` (or a plugin config whose
+   `extensionId` was changed) is refused with close code 4002. The default config
+   names two ids — this repository's development id and the Chrome Web Store id — so
+   a development load and a store install both connect with no setup; a build
+   matching neither is the one to check for.
 
 ### The user says the model could not open their browser
 
@@ -363,11 +366,12 @@ WebSockets have no same-origin policy, so a malicious page *can* open a socket t
 `127.0.0.1` — but a page cannot forge the `chrome-extension://` Origin header, only
 an extension context can present it. Note what the predicate no longer is: any
 `chrome-extension://` origin. Every other extension installed in the same browser
-presents one of those, so the match is against the **configured id**
-(`extensionId`, default `kdhkdgfcinfkmogifamoapmheihhcjfk`, derived from the
-manifest's `key`). If a user reports "the worker connects but everything is
-refused", check that their installed build really has that id at
-`chrome://extensions` before suspecting the token.
+presents one of those, so the match is against the **configured ids**
+(`extensionId`, a comma-separated list defaulting to this repository's development
+id `kdhkdgfcinfkmogifamoapmheihhcjfk`, derived from the manifest's `key`, and the
+Chrome Web Store id `agipnijjkpomaannkjkjliggoffdiaf`). If a user reports "the
+worker connects but everything is refused", check which id their installed build
+really has at `chrome://extensions` before suspecting the token.
 
 Firefox's origin is `moz-extension://<per-install-uuid>`, which is not an
 identity boundary, so **Firefox must present the token**. Non-loopback remotes

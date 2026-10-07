@@ -155,9 +155,12 @@ export function extensionsPageUrl(browserId: string): string {
  * Directory name this extension installs under, used to check whether a profile
  * already has it.
  *
- * A copy of `DEFAULT_EXTENSION_ID`: this module must not import the plugin entry
- * (that would be a cycle), and `tests/extension-identity.spec.ts` asserts the two
- * agree with the manifest's `key`.
+ * A copy of the first entry of `DEFAULT_EXTENSION_IDS`: this module must not import
+ * the plugin entry (that would be a cycle), and `tests/extension-identity.spec.ts`
+ * asserts the two agree with the manifest's `key`. Only the development id is useful
+ * here — the directory is named after the id a *loaded* profile produced, and the
+ * store assigns its own to a store install, which is not checked against a profile
+ * directory by this function.
  */
 const EXTENSION_DIRECTORY_NAME = 'kdhkdgfcinfkmogifamoapmheihhcjfk'
 

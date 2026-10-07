@@ -81,18 +81,30 @@ export function extensionOrigin(extensionId: string): string {
  * The scheme alone is not an identity: every Chrome extension presents some
  * `chrome-extension://` origin, so matching the prefix would let any other
  * installed extension — or a local process that simply sets the header — reach
- * the bridge without the token. The id must be named.
+ * the bridge without the token. The ids must be named, and every one of them is
+ * compared exactly.
+ *
+ * More than one id is allowed because one build can have several. An unpacked
+ * development load is pinned by the manifest `key`, while the Chrome Web Store
+ * refuses a manifest that carries that key and assigns an id of its own — so the
+ * same source legitimately presents either origin.
  *
  * @param origin - the upgrade request's `Origin` header, if any.
- * @param extensionId - the configured extension id; empty disables the bypass.
- * @returns true only for an exact `chrome-extension://<extensionId>` match.
+ * @param extensionId - comma-separated configured ids; empty disables the bypass.
+ *   Surrounding whitespace and empty entries are ignored, so a trailing comma is
+ *   harmless rather than a silently unconfigured bridge.
+ * @returns true only for an exact match against one of the named ids.
  */
 export function isTrustedExtensionOrigin(origin: string | undefined, extensionId: string | undefined): boolean {
   // A direct constructor call may omit the field entirely (the schema default
   // only applies on the plugin path), so anything that is not a non-empty string
   // means "no id configured" rather than "compare against undefined".
-  if (typeof extensionId !== 'string' || extensionId === '') return false
-  return origin === extensionOrigin(extensionId)
+  if (typeof origin !== 'string' || typeof extensionId !== 'string' || extensionId === '') return false
+  return extensionId
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => id !== '')
+    .some((id) => origin === extensionOrigin(id))
 }
 
 /** Error thrown by requestTool; the tool registry turns it into an isError result. */
