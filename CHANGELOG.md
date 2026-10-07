@@ -5,6 +5,38 @@ This project is a derivative of
 are listed only where this fork has something to say about them; see
 [COPYRIGHT.md](COPYRIGHT.md) for which files belong to whom.
 
+## [0.38.3]
+
+### Added
+
+- **The panel can follow a conversation the desktop app is driving.** Until now a
+  panel only ever showed a conversation it had prompted itself, because prompting is
+  what opens the event follower on the bridge. A panel *watching* a conversation
+  driven from the desktop received nothing at all: the worker drops every event
+  whose Session is not the one it is bound to (`assistantStreamEvent` and
+  `sessionEventMessage` both compare against `control.id`), and nothing bound it to
+  a running Session. The visible symptom was an empty transcript in the extension
+  for a conversation the desktop client showed in full — including conversations in
+  the desktop's own 浏览器对话 workspace, which is where the browser work happens.
+  - The bridge gains `session.follow`: open the follower for a named Session
+    without invoking a gateway method, so it is read-only by construction and
+    cannot change a Session's state or admit a turn.
+  - `session.select` gains `follow`, requested *after* the binding moves so the
+    follower streams the conversation the panel now shows. A follow that fails does
+    not fail the switch — the binding is correct either way and only live updates
+    are missing, which keeps a bridge without the method usable.
+  - The panel's conversation picker sets it, so choosing 「当前对话」 and picking a
+    conversation is what starts the mirroring.
+
+### Fixed
+
+- **Nothing in the code changed for `0.38.2`; this release carries its first real
+  change since it was published.** Two documentation corrections that landed after
+  the `0.38.2` archive was built are, as a result, not in the published package's own
+  `README.md`: the settings-page name and the wording of the loopback claim. The
+  install instructions in that archive were always correct — only its prose lagged —
+  and this release brings both into the package.
+
 ## [0.38.2]
 
 No code changed. Only the version number, for a reason worth writing down: **npm

@@ -1154,9 +1154,10 @@ const sessionRpc = {
 /**
  * Ask the bridge to start streaming one conversation's events to this worker.
  *
- * Nothing else opens that stream except sending a prompt, so a panel watching a
- * conversation the desktop app drives would otherwise see nothing at all: every
- * event is dropped unless its session matches the panel's binding.
+ * The only other thing that opens that stream is sending a prompt, which is why a
+ * panel always saw its own conversations and never a conversation the desktop app
+ * drives: every event is dropped unless its session matches the panel's binding, and
+ * binding alone never started the stream.
  *
  * Best-effort on purpose. A transport that predates `session.follow` answers with
  * an error; the panel is still correctly bound in that case, it simply will not
