@@ -89,7 +89,7 @@ them yourself from the extension's service-worker console:
 
 | Signal | Where | Meaning |
 |---|---|---|
-| Status dot in the panel header | green / amber / grey | `connected` / `connecting`-`reconnecting` / `stopped` |
+| Status dot in the panel header | green / amber / red | `connected` / `connecting`-`reconnecting` / `stopped` |
 | The page name next to the dot | header | which tab the tools will act on; `未选择页面` means none is bound |
 | `chrome.storage.local['dshSettings']` | service worker console | the real settings, including the hidden ones |
 
@@ -98,12 +98,12 @@ them yourself from the extension's service-worker console:
 chrome.storage.local.get('dshSettings').then(console.log)
 ```
 
-Do this first. Every failure below is distinguishable from these two signals, and
+Do this first. Every failure below is distinguishable from these signals, and
 guessing between them is how you waste the user's time.
 
 ## Step 2 — Match the symptom
 
-### The dot is grey (`stopped`) and the page name is empty
+### The dot is red (`stopped`) and the page name is empty
 
 The worker is not talking to the bridge at all. In order of likelihood:
 
@@ -217,7 +217,10 @@ are all zero.
   its container, which cut the settings sheet in half and pushed the composer
   off-screen.
 - A flex child without `min-width: 0` (a `<textarea>` especially) refuses to
-  shrink and forces a horizontal scrollbar that clips the whole panel.
+  shrink, so its row grows past the panel and `overflow-x: hidden` clips the overflow
+  away. There is no scrollbar to warn you: the content simply disappears off the right
+  edge. `.header__actions` and `.select` were both fixed this way in 0.38.5;
+  `.composer__input` already carried `min-width: 0`.
 
 `--panel-max` must be **clamped to the panel**, never written through: the
 setting is a maximum reading width (default 640, and the panel may be 360), so
@@ -288,7 +291,7 @@ Two things to check while you are there, because they are what the mode needs:
   mode mirrors the whole group once, which is what brings an existing transcript on
   screen. Second, a launch opens one follower per conversation on the bridge, so if a
   user reports the panel stuck on one conversation while others are active, the bridge
-  is the suspect: a bridge older than `0.38.5` follows a single Session and aborts the
+  is the suspect: a bridge older than `0.38.4` follows a single Session and aborts the
   previous follower when asked for another.
 
   First failure to check is a desktop running an older bridge, which answers

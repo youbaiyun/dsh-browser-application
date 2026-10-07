@@ -79,7 +79,7 @@ Stated plainly, because "derivative" can mean anything from a rename to a rewrit
 | **Shared** | tool surface of `browser_*`, side-panel concept, MV3 + Firefox dual build, `--load-extension`-free operation | same architecture, extended rather than replaced |
 | **Different** | the panel as upstream ships it (`panel/`, plus panel sources under `src/panel/`) | a dependency-free vanilla-TS panel under `control/`; no framework, no build-time UI dependency |
 | **Different** | `selection.ts` (selection-based prompt handling) | `markers.ts` (an origin marker the model can check mechanically) |
-| **Different** | one version number per package | one version number across four packages, asserted by a test |
+| **Different** | one version number per package | one version number across five packages (root, protocol, bridge, extension, benchmark), asserted by a test |
 | **Different** | bridge = `packages/browser/bridge-browser/`, extension = `extensions/dsh-browser/` | `packages/bridge/`, `extension/` |
 | **Different** | ships no settings model of its own; panel owns almost no policy | `extension/src/settings.ts` owns the choices, and the panel only renders what it is handed |
 | **Added here** | — | `session.follow` / `session.unfollow`, whole-workspace mirroring, `browser_launch`, image recognition relay, the troubleshooting skill, and the plugin settings page |

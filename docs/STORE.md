@@ -7,10 +7,17 @@ upload. Read this before opening a dashboard; the copy to paste is in
 ## 1. Build the archive a store will accept
 
 ```sh
+pnpm --filter dsh-browser-extension run build                   # Chrome → dist/
+pnpm --filter dsh-browser-extension run build:firefox           # Firefox → dist-firefox/
 pnpm --filter dsh-browser-extension run build:store             # Chrome → dist-store/
 pnpm --filter dsh-browser-extension run build:store:firefox     # Firefox → dist-firefox-store/
 pnpm --filter dsh-browser-extension run package                 # writes the zips into the repo root
 ```
+
+The first two are not optional even though the `-store` builds are what you upload: the
+packaging script reads the version out of `dist/manifest.json` **and**
+`dist-firefox/manifest.json` and refuses to run if either is missing, and it always writes the
+two development archives alongside the store pair.
 
 That produces four archives, and **the name says which one to upload**:
 
@@ -38,7 +45,7 @@ the id itself.
 ### The consequence to expect
 
 **A store install presents an id the development build never had.** The bridge's
-token-free path names the ids it trusts in `extensionId`, and as of 0.38.5 that
+token-free path names the ids it trusts in `extensionId`, and as of 0.38.4 that
 default lists both `DEFAULT_EXTENSION_IDS` entries in
 `packages/bridge/src/index.ts`: the development id the manifest `key` derives
 (`kdhkdgfcinfkmogifamoapmheihhcjfk`), and the id the Chrome Web Store assigned

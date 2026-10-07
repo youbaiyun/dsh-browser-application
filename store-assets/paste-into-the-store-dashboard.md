@@ -47,7 +47,7 @@ https://github.com/youbaiyun/dsh-browser-crossplatform/tree/main/skills/dsh-brow
 需要先装好桌面端 dsh，并让它在同一台机器上运行。没有 dsh 时，侧边栏会
 显示未连接，不会做任何别的事。
 
-浏览器引擎部分来自 Lum1104/dsh-browser（MIT 协议）；侧边栏与交互层是本
+浏览器引擎部分来自 Lum1104/dsh-browser（现更名为 omdsh-dev/dsh-browser，MIT 协议）；侧边栏与交互层是本
 版本自己的实现。
 ```
 

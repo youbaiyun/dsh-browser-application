@@ -19,9 +19,9 @@ dsh plugin --profile desktop add link:<clone>/packages/bridge
 
 (the profile your desktop app runs is `desktop`; the CLI `dsh web` uses `web`)
 
-Its settings page carries every knob — `visionBaseUrl`, `visionModel`,
-`visionThinking`, `visionTimeoutMs`, the session workspace, the tool timeout — each
-with a one-line description. The repository README has the table.
+Its settings page carries every knob, each with a one-line description; the full
+list is the `Config` schema in `packages/bridge/src/index.ts`, transcribed in
+`skills/dsh-browser-crossplatform-troubleshooting/SKILL.md`.
 
 **适配范围**：Windows / macOS / Linux 上的 dsh 桌面端（Node ≥ 20）+ 桌面 Chrome / Chromium / Edge **116+** 或 Firefox **140+**；**手机与平板不支持**（没有侧边栏这种界面）。
 

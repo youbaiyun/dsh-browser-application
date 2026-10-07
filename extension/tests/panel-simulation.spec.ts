@@ -261,6 +261,12 @@ describe(`panel simulation (${ROUNDS} rounds)`, () => {
     expect(results.filter((r) => !r.expandWorked), '工具行不可交互').toHaveLength(0)
     expect(results.filter((r) => !r.approvalWorked), '审批按钮无效').toHaveLength(0)
     expect(results.filter((r) => !r.draftKept), '草稿被吃掉').toHaveLength(0)
+    // Focus and keystrokes were only ever *reported* by this simulation, never asserted — so the
+    // file whose docstring calls focus "what 'typing suddenly stopped working' is" would have
+    // passed 100 rounds with every round losing focus. These two are the regression it exists
+    // for; the printed counts above stay for a readable failure message.
+    expect(results.filter((r) => r.focusLost > 0), '焦点丢失').toHaveLength(0)
+    expect(results.filter((r) => r.typedLost > 0), '输入丢失').toHaveLength(0)
   }, 180_000)
 
   it('keeps the composer usable while a prompt is sent and while a run is stopped', async () => {

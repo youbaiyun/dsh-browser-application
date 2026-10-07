@@ -34,7 +34,7 @@ dsh plugin --profile desktop add link:<clone>/packages/bridge
 扩展本体从浏览器商店安装（或按下面的构建一节自行加载未打包版本）；上面的包是桌面端那一半，
 插件设置页就在 dsh 里，标题是「dsh 浏览器扩展（全端）的桌面端一半」。
 
-## 结构（四个包同一个版本号 `0.38.5`）
+## 结构（五个包同一个版本号 `0.38.5`）
 
 ```
 packages/protocol   零依赖的线上协议（帧校验、能力/授权分离）
@@ -202,7 +202,7 @@ e2e 需要一个仍遵守 `--load-extension` 的浏览器——Playwright 自带
 
 **提示注入不变量，现在有断言了**：组装给模型的提示必须保持纯 ASCII，这样网页没有同形字可以冒充浏览器面板发言。两半都是导出的具名常量（`packages/bridge/src/index.ts` 的 `BROWSER_PROMPT_PREAMBLE` / `BROWSER_PROMPT_MARKER_RULE`），`packages/bridge/tests/index.spec.ts` 会在任一半出现非 ASCII 字符、或开始把标记本身抄进提示时失败。
 
-**身份不变量同样有断言**：桥接的免令牌通道只绑定具名的扩展 id，测试从两个方向守住这条绑定——`packages/bridge/tests/extension-identity.spec.ts` 从 `extension/manifest.json` 的 `key` 重算 id 并与 `DEFAULT_EXTENSION_IDS` 的第一项比对（扩展不在同级目录时——例如从 npm 单独安装插件——自动跳过），同时断言本项目两个 id 都在默认列表里，并断言未列出的 id、已列出 id 的前缀、其它 scheme、以及空配置**都仍被拒**；`packages/bridge/tests/origin-gate.spec.ts` 钉死"只有列表中精确的 Origin 可免令牌"的判据。`extension/tests/versions.spec.ts` 保持四个包版本一致；`node extension/scripts/extension-id.mjs` 可以打印某个构建的 key 实际推出的 id，便于人工核对。
+**身份不变量同样有断言**：桥接的免令牌通道只绑定具名的扩展 id，测试从两个方向守住这条绑定——`packages/bridge/tests/extension-identity.spec.ts` 从 `extension/manifest.json` 的 `key` 重算 id 并与 `DEFAULT_EXTENSION_IDS` 的第一项比对（扩展不在同级目录时——例如从 npm 单独安装插件——自动跳过），同时断言本项目两个 id 都在默认列表里，并断言未列出的 id、已列出 id 的前缀、其它 scheme、以及空配置**都仍被拒**；`packages/bridge/tests/origin-gate.spec.ts` 钉死"只有列表中精确的 Origin 可免令牌"的判据。`extension/tests/versions.spec.ts` 保持五个包版本一致（根包、协议、桥接、扩展与基准测试，再加两个 manifest）；`node extension/scripts/extension-id.mjs` 可以打印某个构建的 key 实际推出的 id，便于人工核对。
 
 ## 许可
 

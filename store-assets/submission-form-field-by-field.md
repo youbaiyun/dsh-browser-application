@@ -200,10 +200,11 @@ creditworthiness or for lending.
   the longer end, which is why the justification above is written to answer that
   concern specifically — give it verbatim rather than paraphrasing.
 - **The version number must be higher than the last submitted one, and a rejection
-  still consumes it.** Before a resubmission, raise the version in **all six** places
+  still consumes it.** Before a resubmission, raise the version in **all seven** places
   together: the root `package.json`, `packages/protocol/package.json`,
-  `packages/bridge/package.json`, `extension/package.json`, and both manifests.
-  `extension/tests/versions.spec.ts` asserts all six agree — following a shorter list
+  `packages/bridge/package.json`, `extension/package.json`,
+  `benchmark/package.json`, and both manifests.
+  `extension/tests/versions.spec.ts` asserts all seven agree — following a shorter list
   leaves the suite red — and the packaging script names each archive after the
   manifest inside it. Then rebuild.
 - The published version is `0.3.1`. This build is `0.38.5` — a rewrite that adds image

@@ -134,9 +134,9 @@ Notes specific to Firefox:
 - **Tag the release.** `git tag v0.38.5 && git push --tags` matches the manifest
   version to a point in history, which is the only way to answer "what exactly is
   in the store?" later.
-- **Keep the version in one place in your head.** Six files carry one version — the
+- **Keep the version in one place in your head.** Seven files carry one version — the
   root `package.json`, `packages/protocol/package.json`, `packages/bridge/package.json`,
-  `extension/package.json`, and both manifests. They move together, and
+  `extension/package.json`, `benchmark/package.json`, and both manifests. They move together, and
   `extension/tests/versions.spec.ts` fails if any of them drifts; the packaging script
   also names each archive after the manifest inside it.
 - **Watch the first reviews.** The panel's behaviour is unusual by design (no

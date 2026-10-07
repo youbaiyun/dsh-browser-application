@@ -2,7 +2,7 @@
 
 **dsh Browser Extension** — a browser extension for Chrome and Firefox.
 
-Last updated: 2026-10-04
+Last updated: 2026-10-07
 
 ## Summary
 

@@ -34,7 +34,7 @@ dsh plugin --profile desktop add link:<clone>/packages/bridge
 The extension itself is installed from the browser extension store (or load the unpacked build yourself following the build section below); the package above is the bridge plugin,
 and its settings page lives inside dsh, titled 「dsh 浏览器扩展（全端）的桌面端一半」.
 
-## Structure (four packages share the same version number `0.38.5`)
+## Structure (five packages share the same version number `0.38.5`)
 
 ```
 packages/protocol   zero-dependency wire protocol (frame validation, capability/authority split)
@@ -212,7 +212,7 @@ TODO (out of scope for this goal): `background/index.ts` can be split further; t
 
 **Prompt-injection invariant, now asserted**: the prompt section assembled for the model must remain pure ASCII, so a page has no homoglyph that could pass its text off as the browser panel speaking. The two halves are exported constants (`BROWSER_PROMPT_PREAMBLE` / `BROWSER_PROMPT_MARKER_RULE` in `packages/bridge/src/index.ts`), and `packages/bridge/tests/index.spec.ts` fails if either grows a non-ASCII character or starts quoting the marker itself.
 
-**Identity invariants, also asserted**: the bridge's token-free path is bound to named extension ids, and tests keep that binding honest from both directions — `packages/bridge/tests/extension-identity.spec.ts` recomputes the id from `extension/manifest.json`'s `key` and compares it with the first entry of `DEFAULT_EXTENSION_IDS` (skipping when the extension is not a sibling, as in a standalone npm install), checks that both of this project's ids are listed by default, and checks that an unlisted id, a prefix of a listed one, another scheme, and an empty configuration are all still refused; `packages/bridge/tests/origin-gate.spec.ts` pins the predicate that only a listed exact Origin may skip the token. `extension/tests/versions.spec.ts` keeps the four package versions equal, and `node extension/scripts/extension-id.mjs` prints what a build's key actually derives, for checking by hand.
+**Identity invariants, also asserted**: the bridge's token-free path is bound to named extension ids, and tests keep that binding honest from both directions — `packages/bridge/tests/extension-identity.spec.ts` recomputes the id from `extension/manifest.json`'s `key` and compares it with the first entry of `DEFAULT_EXTENSION_IDS` (skipping when the extension is not a sibling, as in a standalone npm install), checks that both of this project's ids are listed by default, and checks that an unlisted id, a prefix of a listed one, another scheme, and an empty configuration are all still refused; `packages/bridge/tests/origin-gate.spec.ts` pins the predicate that only a listed exact Origin may skip the token. `extension/tests/versions.spec.ts` keeps the five package versions equal (root, protocol, bridge, extension and the benchmark harness, plus both manifests), and `node extension/scripts/extension-id.mjs` prints what a build's key actually derives, for checking by hand.
 
 ## License
 
