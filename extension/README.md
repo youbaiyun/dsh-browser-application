@@ -63,15 +63,16 @@ dsh desktop window (the model runs here)
   sensitive-field masking.
 - **panel** (`control/`): a dependency-free vanilla-TS side panel showing the
   conversation, connection state, the controlled tab, approval cards, **the turn's
-  task list**, a short activity log, and the safety settings. It
+  task list**, the tool steps the run is made of, and the safety settings. It
   stays open while you browse — the page beside it is the thing being operated.
   There is deliberately no bridge-address or token field: on the supported path both
   are decided for the user, and a text box would only suggest otherwise.
   - The task list is how a multi-step request stays legible: the model writes the
     checklist it is about to run and re-emits it with the boxes ticked, and the panel
     shows it above the run with the task in progress, the finished ones and the
-    failed ones marked. Each activity line also ends with what its tool actually did,
-    so a completed step never looks like a pending one.
+    failed ones marked. Each tool line carries that step's state in its icon and
+    colour (and its tool, result and call id once expanded), so a completed step
+    never looks like a pending one.
 - **protocol**: the wire contract is the workspace package
   `@dsh-browser/protocol` (`packages/protocol/src/index.ts`, plus
   `vision-contract.ts`), inlined into both ends by the bundler so the two halves
@@ -86,6 +87,7 @@ pnpm install
 pnpm --filter dsh-browser-extension run build            # Chrome/Edge -> dist/
 pnpm --filter dsh-browser-extension run build:firefox    # Firefox     -> dist-firefox/
 pnpm --filter dsh-browser-extension run build:store      # Chrome, no manifest `key` -> dist-store/
+pnpm --filter dsh-browser-extension run build:store:firefox  # Firefox, no `key` -> dist-store-firefox/
 pnpm --filter dsh-browser-extension run test
 pnpm --filter dsh-browser-extension run typecheck
 ```

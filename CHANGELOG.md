@@ -49,7 +49,8 @@ settings change: a `0.38.4` bridge and a `0.38.5` extension interoperate exactly
   `state` as well as in `session.event`, and only the event path refreshed the button. A state
   push now refreshes it too, which also clears a stale "not connected" line from the meta row
   once the bridge is back.
-- **The conversation picker could latch on 「正在读取…」 with no way out.** `refreshSettingsSheet`
+- **The conversation picker could latch on 「正在读取…」 because its change check ignored the
+  list.** `refreshSettingsSheet`
   skips work when nothing it draws has changed, and its change check omitted the fetched
   conversation list — so the reply to `session.list` was swallowed, the options were never
   inserted, and a `<select>` holding only its placeholder never fires `change`. The check now
@@ -61,7 +62,8 @@ settings change: a `0.38.4` bridge and a `0.38.5` extension interoperate exactly
   read once, and never set back — a constant dressed as state — so all twenty-odd `render()`
   call sites yanked a reader who had scrolled up. The position is now captured before the rebuild
   and restored after.
-- **The conversation picker latched on "loading" forever.** `requestSessions()` set
+- **The same picker could also latch on "loading" forever when the request never settled.**
+  `requestSessions()` set
   `sessionsLoading` before the call and its `catch` did nothing, so a dead port left the guard
   blocking every retry for the life of the panel. `call()` also had no timeout and `dispose()`
   never settled in-flight requests, so a lost answer meant a promise that never resolved — and a

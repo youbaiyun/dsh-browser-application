@@ -1,6 +1,6 @@
 ---
 name: dsh-browser-crossplatform-troubleshooting
-description: Use when the dsh browser extension (dsh 浏览器扩展 / dsh Browser Extension) misbehaves — the panel shows 未连接/未选择页面, browser tools time out or refuse, approvals never appear, the panel is empty or clipped, or the user says the model cannot see or operate their browser.
+description: Use when the dsh browser extension (dsh 浏览器扩展 / dsh Browser Extension) misbehaves — the panel shows 未连接/未选择页面, browser tools time out or refuse, approvals never appear, the panel is blank (its header and composer drawn over empty space), empty or clipped, or the user says the model cannot see or operate their browser.
 ---
 
 # dsh 浏览器扩展 — diagnosis and repair

@@ -19,7 +19,9 @@ tab; the panel is where the user types and where replies appear.
 **`storage`**
 Remembers the bridge address and token, plus the user's preferences (page-content
 sharing mode and tab-switch behaviour; "whether the model may open pages" is a
-desktop-side setting, read here and not stored by the extension). Settings survive
+desktop-side setting, read here and not stored by the extension), the tab the
+affinity layer is currently bound to, the desktop session id it last mirrored, and
+whether the first-run note has been shown. Settings survive
 a browser restart. It also keeps the description it produced for each image the
 user asked about — keyed by that image's address, so asking twice does not fetch
 or describe it twice. That memo is kept in **local extension storage for up to 24

@@ -70,6 +70,8 @@ dsh 桌面窗口（模型在这里运行）
 pnpm install
 pnpm --filter dsh-browser-extension run build            # Chrome/Edge -> dist/
 pnpm --filter dsh-browser-extension run build:firefox    # Firefox     -> dist-firefox/
+pnpm --filter dsh-browser-extension run build:store      # Chrome，不含 manifest `key` -> dist-store/
+pnpm --filter dsh-browser-extension run build:store:firefox  # Firefox，不含 `key` -> dist-store-firefox/
 pnpm --filter dsh-browser-extension run test
 pnpm --filter dsh-browser-extension run typecheck
 ```
