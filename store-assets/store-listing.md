@@ -95,7 +95,7 @@ page itself, with your login intact. No separate browser. No screenshots.
 • The conversation lives in the side panel: you type, it answers, and a multi-step
   request first appears as a task list that gets ticked off as it works — no
   dashboard, and no progress bars. Each tool run takes one quiet line.
-• Loopback only, with one exception: image recognition. It is off by default; when
+• Local only, with one exception: image recognition. It is off by default; when
   you turn it on and ask about an image, the extension fetches that image's own
   address — with your login intact, so an image behind a login is readable — and
   hands the bytes to the desktop app. No server of its own, no telemetry.
