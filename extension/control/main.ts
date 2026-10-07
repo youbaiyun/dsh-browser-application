@@ -157,10 +157,17 @@ export function stateText(state: TimelineEntry['state'], locale: UiLocale): stri
 export function sessionLabel(session: SessionSummary, copy: ControlCopy): string {
   const title = session.title.trim()
   const name = title === '' ? copy.settings.conversationUntitled : title
-  if (session.updatedAt <= 0) return name
-  const when = new Date(session.updatedAt)
-  const stamp = `${when.getMonth() + 1}/${when.getDate()} ${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`
-  return `${name} · ${stamp}`
+  // The running marker comes before the timestamp and after the name, so a narrowed
+  // picker truncates the timestamp rather than the one fact that identifies the
+  // conversation the desktop is working in.
+  const parts = [name]
+  if (session.running) parts.push(copy.settings.conversationRunning)
+  if (session.updatedAt > 0) {
+    const when = new Date(session.updatedAt)
+    const stamp = `${when.getMonth() + 1}/${when.getDate()} ${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`
+    parts.push(stamp)
+  }
+  return parts.join(' · ')
 }
 
 /** Every row of the transcript, oldest first. */

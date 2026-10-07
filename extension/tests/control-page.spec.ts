@@ -29,6 +29,7 @@ import {
   mergeActivity,
   mergeApprovals,
   stateText,
+  sessionLabel,
   textFromBlocks,
   timelineFromState,
   toolLabel,
@@ -741,5 +742,23 @@ describe('rendered panel', () => {
   it('classifies the composer draft the same way the submit path does', () => {
     expect(classifyInput('snapshot')).toMatchObject({ kind: 'command' })
     expect(classifyInput('看看这个页面')).toMatchObject({ kind: 'prompt' })
+  })
+
+  it('marks a running conversation in the picker, ahead of its timestamp', () => {
+    // The picker lists dozens of conversations whose titles repeat — every sub-agent
+    // conversation is titled with its own prompt. `running` is the one signal that
+    // identifies the conversation the desktop is working in, so it has to survive a
+    // narrow dropdown: it sits after the name and before the timestamp, and the
+    // timestamp is what gets truncated.
+    const copy = controlCopy('zh')
+    const at = new Date(2026, 0, 2, 3, 4).getTime()
+    expect(sessionLabel({ sessionId: 's', title: '看视频', updatedAt: at, running: true }, copy))
+      .toBe('看视频 · 进行中 · 1/2 03:04')
+    expect(sessionLabel({ sessionId: 's', title: '看视频', updatedAt: at, running: false }, copy))
+      .toBe('看视频 · 1/2 03:04')
+    expect(sessionLabel({ sessionId: 's', title: '看视频', updatedAt: 0, running: true }, copy))
+      .toBe('看视频 · 进行中')
+    expect(sessionLabel({ sessionId: 's', title: '  ', updatedAt: 0, running: false }, copy))
+      .toBe('未命名')
   })
 })

@@ -1471,8 +1471,18 @@ async function listSessions(): Promise<SessionSummary[]> {
       running: item.running === true,
     })
   }
-  // Newest first, so the conversation the user just left is at the top.
-  sessions.sort((left, right) => right.updatedAt - left.updatedAt)
+  // A conversation with a turn in progress comes first, then newest first.
+  //
+  // The running flag is the only signal that identifies the conversation the user is
+  // actually looking at: the list runs to dozens of entries, titles repeat (`You are
+  // a senior code…` appears once per sub-agent), and the desktop publishes no
+  // "currently open" field the panel could read. What it does publish is `running`
+  // for the conversation whose turn is executing, and that one is almost always the
+  // one on screen — so it belongs at the top rather than wherever its timestamp lands.
+  sessions.sort((left, right) => {
+    if (left.running !== right.running) return left.running ? -1 : 1
+    return right.updatedAt - left.updatedAt
+  })
   return sessions
 }
 

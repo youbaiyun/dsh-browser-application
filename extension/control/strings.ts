@@ -130,6 +130,14 @@ export interface ControlCopy {
     conversationLoading: string
     conversationNone: string
     conversationUntitled: string
+  /**
+   * Marker on a conversation the desktop is working in right now.
+   *
+   * The single most useful thing the picker can say: the list is long, the titles
+   * repeat, and the conversation whose turn is running is nearly always the one the
+   * user is looking at. Without it the only signal is a timestamp.
+   */
+  conversationRunning: string
     autoOpen: string
     autoOpenHelp: string
     unrestricted: string
@@ -243,6 +251,7 @@ const ZH: ControlCopy = {
     conversationLoading: '正在读取…',
     conversationNone: '请选择…',
     conversationUntitled: '未命名',
+  conversationRunning: '进行中',
     autoOpen: '自动弹出侧边栏',
     autoOpenHelp: '它一动浏览器，这边就自己弹出来。你能实时看到它在找什么、下什么、点哪里。平常聊天不弹。',
     unrestricted: '不再询问，直接操作',
@@ -355,6 +364,7 @@ const EN: ControlCopy = {
     conversationLoading: 'Reading…',
     conversationNone: 'Choose one…',
     conversationUntitled: 'Untitled',
+  conversationRunning: 'running',
     autoOpen: 'Open the side panel automatically',
     autoOpenHelp: 'The panel opens while it uses the browser, so you can watch what it searches, downloads and clicks. Ordinary chat does not open it.',
     unrestricted: 'Stop asking and just act',
