@@ -5,6 +5,30 @@ This project is a derivative of
 are listed only where this fork has something to say about them; see
 [COPYRIGHT.md](COPYRIGHT.md) for which files belong to whom.
 
+## [0.38.1]
+
+A naming and wording release. No behaviour changed.
+
+### Changed
+
+- **The extension is called `dsh 浏览器扩展（全端）`** (`dsh 瀏覽器擴充功能（全端）`
+  in Traditional Chinese). The parenthetical said `应用端` — the *application* side —
+  which described only one end of a product that has several. The English name,
+  `dsh Browser Extension`, already carried no such limit and is unchanged.
+- **The short description now says which model reads a picture.** The Chinese version
+  ended at "会把你要看的那张图交给桌面端", which reads as though the desktop app looks
+  at the image itself; the picture is handed to the model configured there, so it now
+  says so. The English version was reworded to match (`Image look-up is optional` →
+  `Image look-up optional`) and is **122 characters** against the store's 132 limit —
+  short enough that naming the model there as well would have pushed it over, which is
+  why the detailed description carries that detail instead. The store listing, the
+  paste-in sheet and the submission form were kept byte-equal to `_locales/en`, which
+  `extension/tests/locales.spec.ts` asserts.
+- **`0.38.0` was never published to npm and cannot be**: the name
+  `dsh-browser-crossplatform` was registered on 2026-10-06 and unpublished 23 minutes
+  later, and npm permanently retires a version number that has been unpublished. This
+  release therefore takes `0.38.1`, and every version-holding file moved with it.
+
 ## [0.38]
 
 A correctness and truthfulness pass over 0.37: one security boundary narrowed,

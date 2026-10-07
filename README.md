@@ -29,7 +29,7 @@ dsh plugin --profile desktop add dsh-browser-crossplatform   # the CLI dsh web u
 The extension itself is installed from the browser extension store (or load the unpacked build yourself following the build section below); the package above is the bridge plugin,
 and its settings page lives inside dsh, named 「dsh 浏览器设置」.
 
-## Structure (four packages share the same version number `0.38.0`)
+## Structure (four packages share the same version number `0.38.1`)
 
 ```
 packages/protocol   zero-dependency wire protocol (frame validation, capability/authority split)
@@ -65,7 +65,7 @@ ordinary session methods that `dsh web --host` exists to serve; what it cannot d
 
 | Dimension | Original | This version |
 |---|---|---|
-| Version | Root 0.2.1 / extension 0.3.1 / bridge 0.0.7, each drifting independently | Unified `0.38.0` — root package, protocol, bridge, extension and both manifests all agree |
+| Version | Root 0.2.1 / extension 0.3.1 / bridge 0.0.7, each drifting independently | Unified `0.38.1` — root package, protocol, bridge, extension and both manifests all agree |
 | Node | `^22.19 \|\| >=24` | `>=20` |
 | TypeScript | Split between extension 5.6 and bridge 6.0 | One toolchain; the extension's declared range is `^5.6`, the bridge's and the protocol's `^5.7`, and the lockfile resolves a single installed version |
 | Dependencies | 35 `@deepseek-ai/*` (RC) in the root package, node_modules at 600 MB | **0** dsh dependencies in the root package (its tests and typecheck are pure Node + a bundled tsc); the bridge ships with only `ws` + `@deepseek-ai/schemastery` and declares all of dsh as `peerDependencies` (at runtime it probes the host via `ctx.get()`, and bundles nothing); the extension has two panel-only runtime dependencies (`marked` + `dompurify`), both bundled into the panel build |
