@@ -5,6 +5,28 @@ This project is a derivative of
 are listed only where this fork has something to say about them; see
 [COPYRIGHT.md](COPYRIGHT.md) for which files belong to whom.
 
+## [0.38.2]
+
+No code changed. Only the version number, for a reason worth writing down: **npm
+retires version numbers two different ways, and this package has now hit both.**
+
+- `0.38.0` was published on 2026-10-06 and unpublished 23 minutes later. npm
+  permanently retires a version that has been unpublished, so it can never be
+  published again.
+- `0.38.1` was accepted by `pnpm publish`, which stages a package and waits to be
+  told to promote it. The promotion never happened, and the registry now refuses
+  that version with `409 Cannot publish over previously staged version "0.38.1"` —
+  a marker that survives the staged record being emptied (`pnpm stage list` reports
+  nothing).
+
+`0.38.2` is the first version number on this package name with no history behind
+it. Until now the registry has also been carrying a `0.0.0-stage` placeholder as
+`latest`, which is what a client would have downloaded; a normal publish replaces
+it as `latest`.
+
+Publish with `npm publish`, not `pnpm publish`: npm writes the version directly
+and does not stage it, so there is nothing left to promote.
+
 ## [0.38.1]
 
 A naming and wording release. No behaviour changed.
