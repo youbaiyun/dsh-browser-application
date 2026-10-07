@@ -1,6 +1,6 @@
 ---
 name: dsh-browser-crossplatform-troubleshooting
-description: Use when the dsh browser extension (dsh 浏览器扩展 / dsh Browser Extension) misbehaves — the panel shows 未连接/未选择页, browser tools time out or refuse, approvals never appear, the panel is empty or clipped, or the user says the model cannot see or operate their browser.
+description: Use when the dsh browser extension (dsh 浏览器扩展 / dsh Browser Extension) misbehaves — the panel shows 未连接/未选择页面, browser tools time out or refuse, approvals never appear, the panel is empty or clipped, or the user says the model cannot see or operate their browser.
 ---
 
 # dsh 浏览器扩展 — diagnosis and repair
@@ -90,7 +90,7 @@ them yourself from the extension's service-worker console:
 | Signal | Where | Meaning |
 |---|---|---|
 | Status dot in the panel header | green / amber / grey | `connected` / `connecting`-`reconnecting` / `stopped` |
-| The page name next to the dot | header | which tab the tools will act on; `未选择页` means none is bound |
+| The page name next to the dot | header | which tab the tools will act on; `未选择页面` means none is bound |
 | `chrome.storage.local['dshSettings']` | service worker console | the real settings, including the hidden ones |
 
 ```js
@@ -136,14 +136,25 @@ The worker is not talking to the bridge at all. In order of likelihood:
 ### The user says the model could not open their browser
 
 `browser_launch` (and the preflight on every tool) starts **the user's default browser with no extra
-flags**, and refuses to start anything when that browser is already running — a second start would
-only open a window in the existing process while discarding the flags. When the extension turns out
-not to be installed in any Chrome/Edge/Brave/Chromium profile, the answer says so and opens that
-browser's extensions page. That install is the fix, and it is a one-time manual step: everything
-after it reconnects by itself. Do not try to make a launch "work" by pointing it at a test profile or
-a different Chromium — that opens a browser the user did not ask for, with none of their sessions.
+flags**, and refuses to start anything while that browser is **running with a window** — a second start
+would only open a window in the existing process while discarding the flags.
 
-### The dot is green but the page name says `未选择页`
+The exception is a process that outlived its last window: a Chromium process can stay resident with no
+window at all, and the extension keeps its socket open while it does, so a live connection is not proof
+that there is a page to act on. In that one state a launch is deliberate — it is what makes the resident
+process open a window again, because otherwise every page tool fails with "no active tab". The state is
+established by asking the window manager how many windows the running browsers own (PowerShell
+`MainWindowHandle` on Windows, System Events on macOS), and only a **definite** "none" acts: a platform
+that cannot be asked, a shell that will not run, or a probe that throws all fall back to the refusal
+above, because a wrong answer there would open a window nobody asked for.
+
+When the extension turns out not to be installed in any Chrome/Edge/Brave/Chromium profile, the answer
+says so and opens that browser's extensions page. That install is the fix, and it is a one-time manual
+step: everything after it reconnects by itself. Do not try to make a launch "work" by pointing it at a
+test profile or a different Chromium — that opens a browser the user did not ask for, with none of
+their sessions.
+
+### The dot is green but the page name says `未选择页面`
 
 The connection is fine; no tab is bound. The binding is created by the **first
 tool call**, not by connecting. So this is normal before the model has touched
@@ -153,7 +164,7 @@ the error in the conversation.
 ### Browser tools time out
 
 Each tool call has a deadline and a pending approval blocks dispatch, so a
-timeout has exactly two causes:
+timeout has three causes worth separating:
 
 - **An unanswered approval.** Approvals expire after **120 seconds** and a
   timeout is a **denial** (fail closed). The user sees an approval card in the
@@ -162,13 +173,25 @@ timeout has exactly two causes:
 - **The tab is gone.** The controlled tab was closed or navigated away. The
   panel shows a "操作的页面被关闭了" (page being used was closed) notice with a
 rebind button.
+- **The call was cancelled, not timed out.** A connection drop cancels every in-flight
+  tool call, and the bridge then refuses the next one with
+  `tool call cancelled before the extension answered` rather than with a deadline
+  message. The two look alike from the transcript and have opposite fixes: a timeout is
+  about the page or an approval, a cancellation is about the socket. Read the error text
+  before choosing.
+
+Note the shipped default again here: with `unrestrictedBrowserAccess` on, no approval is
+ever created, so an "unanswered approval" cannot be the cause and the first bullet does
+not apply. A timeout on a fresh install is the page or the socket.
 
 ### Tools refuse with "not connected" / the model says it has no browser
 
-`bridge === null` on the desktop side. The extension is either disconnected
-(Step 2, case 1) or connected from a *different profile's* extension. Have the
-user check `chrome://extensions` for a second copy of the extension enabled in
-another profile.
+The desktop answered `no browser extension is connected to the bridge` — that is the
+exact string, from the bridge's own tool refusal; searching the desktop for a field
+named `bridge` will not find it. (`bridge === null` is the *extension's* guard for a
+different layer.) The extension is either disconnected (Step 2, case 1) or connected
+from a *different profile's* extension. Have the user check `chrome://extensions` for a
+second copy of the extension enabled in another profile.
 
 ### The panel is blank, clipped, or a huge empty area
 
@@ -186,27 +209,90 @@ Two historical causes, both worth re-checking if it recurs:
 ### Approvals never appear
 
 - Panel open → the card is in the transcript. Scroll down.
-- Panel closed → requires `approvalNotifications` **and** OS notification
-  permission for the browser. If notifications are blocked by the OS, the
-  toolbar badge still counts up; clicking the toolbar icon opens the panel.
-- `unrestrictedBrowserAccess` on → **no approval is asked at all** by design.
-  This is the most common "it stopped asking" explanation.
+- Panel closed → a system notification **and** the toolbar badge, provided the OS
+  notification permission is granted for the browser. If the notification does not
+  appear, the badge still counts up, and when `chrome.notifications.create` rejects the
+  worker opens the control panel directly rather than only marking the badge. Note that
+  `approvalNotifications` does **not** gate this: the setting is persisted and normalised
+  but read by nothing at runtime, so setting it to `false` changes no behaviour.
+- `unrestrictedBrowserAccess` on → **no approval is asked at all** by design, so no card
+  and no notification will ever appear. **This is the shipped default**, not something
+  the user had to switch on: a fresh install is already in this state and the panel
+  shows 「不再询问，直接操作」 on. Check that switch before assuming a request went
+  missing, and if the report is "it asked before and now it does not", the switch being
+  on is the explanation.
+
+### The panel says 「桌面端还没加载新版桥接」 / the mirror is empty
+
+This is the one notice the worker raises about its own state, so a report that mentions
+it is already diagnosed. `startFollowingSession` asked the desktop to stream a
+conversation and got `not-found` — the running bridge predates `session.follow` — and the
+worker turns exactly that into a panel notice naming the fix
+(`桌面端还没加载新版桥接，面板无法跟随对话。重启 dsh 桌面端后重试。` /
+*The desktop app has not loaded the new bridge…*). The fix is to **restart the desktop
+app**: a rebuilt `lib/` is not hot-loaded into a running Node process, so a bridge that
+was updated on disk while dsh stayed up is the ordinary cause, not a bug.
+
+Two things to check while you are there, because they are what the mode needs:
+
+- The notice only appears for that specific failure. A mirror that is empty **without**
+  the notice is a different problem: read the group instead. `sessionScope` must be
+  `'workspace'`, the handshake must carry `policy.sessionWorkspacePath`, and
+  `workspace.list` must return a workspace whose `path` equals it.
+- The notice clears on a successful follow and on any connection change, because it
+  describes the connection that produced it. A stale one is not evidence.
+
+`approvalNotifications` is unrelated here and does not gate any panel notice.
 
 ## Which conversation the panel writes to
 
 `settings.sessionScope` decides it, and the target is **chosen, never guessed**:
 
-- `fresh` (default) — the panel gets its own session, created lazily on the first
-  prompt. Browser chatter never lands in a longer conversation.
+- `fresh` — the panel gets its own session, created lazily on the first prompt.
+  Browser chatter never lands in a longer conversation.
 - `pinned` — the panel continues the conversation named in
   `settings.pinnedSessionId`, so you can ask about a page inside context that
   already exists.
+- `workspace` (**default**) — the panel mirrors every conversation in the desktop's
+  browser workspace instead of one. It is identified by the **path** the bridge sends in
+  the handshake as `policy.sessionWorkspacePath`, not by the workspace's title, because a
+  user can rename the group. This is the only mode that shows a conversation the panel
+  never prompted, which is what "instructions issued on the desktop do not appear here"
+  is about.
+
+  Two consequences a diagnosis needs. First, the mirrored set is re-read every ten
+  seconds and narrowed to conversations that are **`running` or updated within five
+  minutes** (`RECENT_ACTIVITY_MS`); a conversation that goes quiet is dropped, so a
+  mirror that looks incomplete mid-session is usually this and not a fault. Entering the
+  mode mirrors the whole group once, which is what brings an existing transcript on
+  screen. Second, a launch opens one follower per conversation on the bridge, so if a
+  user reports the panel stuck on one conversation while others are active, the bridge
+  is the suspect: a bridge older than `0.38.4` follows a single Session and aborts the
+  previous follower when asked for another.
+
+  First failure to check is a desktop running an older bridge, which answers
+  `session.follow` with `not-found`. The worker surfaces that as a panel notice naming
+  the fix, so if the user reports an empty mirror, ask whether that notice is on screen
+  before looking anywhere else.
+
+`sessionScope: 'workspace'` does **not** change where a prompt goes: the panel keeps its
+own conversation, and typing in the composer starts one. Mirroring is about watching the
+conversations the desktop drives.
 
 The desktop publishes no "session I am viewing" signal, so there is nothing to
 infer from. A mode that guessed by recent activity would deliver a prompt into
 the wrong conversation and say nothing about it — which is why the panel asks
 the user to pick one instead. `session.list` is reachable from the extension for
-that picker; it returns `{ items: [{ sessionId, title, updatedAt, running }] }`.
+that picker, and the worker narrows what it returns before the picker sees it:
+`{ sessionId, title, preview, updatedAt, running }`, where `title` is read from
+`projections.values.title` (it is not a top-level field) and `preview` is the
+conversation's opening prompt, from `projections.values.turnOutline`. Sub-agent
+conversations are dropped — anything with `origin === 'subagent'` or a
+`parentSessionId` — because a delegated sub-agent is a Session of its own and would
+otherwise fill the picker with rows titled after its own instructions. The list is
+sorted running-first, and the panel labels a running one 「进行中」. A report that a
+conversation is *missing* from the picker is therefore usually the sub-agent filter
+working, not a bug; check `origin` on the raw `session.list` reply before believing it.
 
 Two invariants worth knowing before changing this code:
 
@@ -339,13 +425,10 @@ chrome.storage.local.get('dshSettings').then(({ dshSettings }) =>
     dshSettings: { ...dshSettings, token: '<contents of ~/.dsh/ext-bridge-token>' },
   }))
 
-// Silence the OS notification (only used when the panel is closed):
-chrome.storage.local.get('dshSettings').then(({ dshSettings }) =>
-  chrome.storage.local.set({ dshSettings: { ...dshSettings, approvalNotifications: false } }))
-
 // Back to zero-config discovery:
 chrome.storage.local.get('dshSettings').then(({ dshSettings }) =>
   chrome.storage.local.set({ dshSettings: { ...dshSettings, bridgeUrl: '', token: '' } }))
+
 ```
 
 Changing `bridgeUrl` or `token` restarts the socket immediately; the other

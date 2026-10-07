@@ -40,6 +40,17 @@ cover **two** image-recognition operations — and recognition is off by default
 Nothing is sent to any server belonging to the author of this
 extension.
 
+**It also receives, without sending.** The 「对话发到」 setting defaults to
+`workspace`, which mirrors your desktop app's browser workspace into the side panel: the
+desktop streams the events of the conversations in that workspace — their prompts,
+answers and tool steps — to the extension over the same loopback socket, so the panel can
+show what the desktop is doing. The extension does not request that content beyond asking
+which conversations to follow, does not store the transcript (it is rendering state, not
+persisted data), and cannot read a conversation outside the workspace the desktop names.
+Choosing `fresh` or `pinned` in that setting stops the mirroring for everything except
+the one conversation the panel is bound to. Note this is separate from *page* content:
+the mirror is your own conversation text, and it never leaves the loopback connection.
+
 ## What is stored locally
 
 The extension stores the following in your browser's extension storage, on your
@@ -100,8 +111,10 @@ no personal information from anyone, including children.
 
 - Removing the extension deletes everything it has stored.
 - Revoking the desktop app's connection (quitting dsh) stops all transfer.
-- Turning page sharing to "Never" in the extension's settings stops page content
-  from being read at all.
+- Turning page sharing to "Never" in the extension's settings stops page content from
+  being read by the model — **but only while the 「不再询问，直接操作」 switch is off.**
+  That switch ships on, and while it is on the read policy is overridden to `auto`, so
+  "Never" has no effect. Turn that switch off first if you want the setting to hold.
 
 ## Changes
 

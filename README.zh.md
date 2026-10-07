@@ -86,7 +86,7 @@ Firefox for Android 没有侧边栏这种界面；而且桥接**在关键处只�
 - **文本快照 + 动作执行**：不截图、不做图像识别（协议层 `textOnly: true`）。页面渲染成结构化文本：标题/URL/正文（readability-lite）+ 编号交互清单（含 ARIA role 控件）+ 表单字段（含 `masked`/`checked`/`required`），支持 `delta` 差分与 `region` 局部快照。
 - **安全不变量**：敏感字段（`type=password`、`autocomplete=credit-card|cc-*`、id/name/aria-label 命中 `password|passwd|credit|card|cvv|cvc|secret|pwd`）的值一律掩码成 `••••`；**可访问名永不使用输入框的当前值**（仅 submit/button/reset 类的 value 作名），并有单测钉死。
 - **工具面（17）**：`browser_snapshot` / `click` / `type` / `press` / `scroll` / `navigate` / `open_tab` / `list_tabs` / `follow_tab` / `close_tab` / `back` / `forward` / `reload` / `get_text` / `wait` / `launch` / `describe_image`。完整参数面：`delta`/`region`/`replace`/`amount`/`selector`/`ms`/`active`/`tabId`/`index`/`text`/`key`/`direction`/`url`，以及 7 个帧局部工具上的 `frame`。`browser_describe_image` 只在识别开启时才有答案；`browser_launch` 是唯一在桌面端执行的工具——因为只有它能在"没有浏览器"的情况下做事。
-- **浏览器没开时把它拉起来（`browser_launch`，以及每个工具调用前的预检）**：工具执行都在扩展里，所以浏览器关着就没有可派发的对象——以前直接抛一个干巴巴的 `bridge-closed`。现在无连接时会先尝试启动浏览器，再报告实际结果。它启动的是**你本来就在用的浏览器**：可执行文件从系统"默认浏览器"记录里读取（Windows/macOS），并且**不加任何额外参数**——不加 `--user-data-dir`（那会变成另一个浏览器，没有你的标签页和登录态），也不加 `--load-extension`。如果该浏览器**已经在运行，则什么都不启动**（再启动一次只会把请求交给已有进程并丢弃参数，相当于白开一个窗口），回答里直接说明该去哪个浏览器里启用扩展。`browserUserDataDir` + `extensionPath` 是为开发场景准备的：在指定配置目录里真正加载未打包构建。
+- **浏览器没开时把它拉起来（`browser_launch`，以及每个工具调用前的预检）**：工具执行都在扩展里，所以浏览器关着就没有可派发的对象——以前直接抛一个干巴巴的 `bridge-closed`。现在无连接时会先尝试启动浏览器，再报告实际结果。它启动的是**你本来就在用的浏览器**：可执行文件从系统"默认浏览器"记录里读取（Windows/macOS），并且**不加任何额外参数**——不加 `--user-data-dir`（那会变成另一个浏览器，没有你的标签页和登录态），也不加 `--load-extension`。如果该浏览器**已经在运行且开着窗口，则什么都不启动**（再启动一次只会把请求交给已有进程并丢弃参数，相当于白开一个窗口），回答里直接说明该去哪个浏览器里启用扩展。`browserUserDataDir` + `extensionPath` 是为开发场景准备的：在指定配置目录里真正加载未打包构建。
 - **它做不到的事**：替你安装扩展。命令行加载只活一个会话、什么都不安装——关掉浏览器就没了——而且从 Chrome 137 起，带品牌的 Chrome/Edge 已完全不认 `--load-extension`（Chromium 与 Chrome for Testing 仍认）。所以扩展必须在那个配置里装一次（商店，或在扩展页"加载已解压的扩展程序"），之后正常启动就会自己连回来。桥接会检查 Chrome/Edge/Brave/Chromium 配置里有没有 `<profile>/Extensions/<id>`，然后如实说明你处在哪种情况，而不是给一个帮不上的建议。
 - **帧路由**：快照组合主帧与所有可访问 iframe，子帧标注为 `[frame N] <origin>`；后台记住 `N → frameId`，后续带 `frame` 的工具路由到同一帧；各帧在同一份协商预算内渲染，正文先被截断（`mainBudget = maxChars × 0.5`），长页面吞不掉交互清单。
 - **超出上游的能力**（在上游实现之上补的能力，不是删减）：`browser_type` 能填 `<select>`（按 option value → 可见标签 → 1-based 序号依次匹配，失败时列出可用选项）并用 true/false 设置 checkbox/radio；`browser_wait` 支持等待条件（`selector` / `text`，未出现则以 `timeout` 错误码失败），不再只是固定延时。
@@ -98,9 +98,9 @@ Firefox for Android 没有侧边栏这种界面；而且桥接**在关键处只�
 - **两条识别通道，桌面中转优先**：协议新增 `image.call` / `image.result` 一对帧，`hello.ok` 的 policy 增加 `imageRecognition`。扩展先自己取图（只有它带登录态），拿到字节就随帧发下去；取不到才把 URL 交给桌面，由桌面用不受 CSP／host permission／企业策略约束的网络栈去取——这是桌面中转真正的价值，也是为什么帧里带的是 `source` 而不是固定的那一种。桌面侧 `vision.ts` 调配置好的 chat-completions 模型（默认 `deepseek-flash`，图片走 data URL，`thinking` 关闭，`usage` 回读以便确认开关真的生效），`image-relay.ts` 负责取字节或按 URL 兜底并分类失败。凭据留在桌面：当既没有配置 `visionApiKey`、也无法从桌面凭据库解析出 `DEEPSEEK_API_KEY` 时，`hello.ok` 报 `imageRecognition: false`。`background/vision.ts` 每次请求挑通道：**桌面只要声明了中转就用中转**，否则才走扩展自己的直连。
 - **外接 API 直连（识别这一步在界面上不可见）**：`background/vision.ts`（`DirectRecognizer`）让扩展自己调外接 API，配置从 `chrome.storage.local` 读（`visionEndpoint` / `visionApiKey` / `visionModel`；超时与 `thinking` 开关只存在于桌面端插件配置），**不新增任何界面**——面板只显示「看图」档位，不暴露任何识别相关输入。真实失败（429 等）当场结算，不会为同一张图付两次钱。看图相关设置与其他设置同在 `src/settings.ts`，面板从不暴露它们。关键保证：**识别这一步不建会话、不写文件、不产生对话条目**——它只是后台里一次普通外发调用；描述备忘落在 `chrome.storage.local`（24 小时过期）。两条路径共用 `protocol/src/vision-contract.ts` 的提示词与解析器，所以「谁调模型」不改变问了什么、也不改变什么算合格回答。
 - **面板 markdown**：模型回复用 `marked` 渲染、`DOMPurify` 净化；流式期间保持纯文本（避免逐帧重解析），定稿后渲染；回复中的链接在新标签打开，不跳出面板。
-- **审批确认**：状态变更动作默认先问用户（`unrestrictedBrowserAccess` 开关、受信源、单次允许）。
+- **审批确认**：状态变更动作可改为先问用户（`unrestrictedBrowserAccess` 开关、受信源、单次允许）。该开关**出厂即开**，所以新装不会被询问；关掉它即恢复审批。它开着时还会覆盖「让 AI 读取网页」的选择，因此选了"先问我"也不生效。
 - **按需注入**：受控标签页不依赖 manifest 的 `content_scripts`——脚本经 `chrome.scripting` 注入受控标签页，导航后重新注入；manifest 里那条声明的意义是让「扩展安装/重载之前就已打开」的标签页也已被覆盖。
-- **标签页亲和**：工具绑定单一受控标签页；`ask` 模式下切换标签页会阻塞并询问 keep/follow。
+- **标签页亲和**：工具绑定单一受控标签页。手动切换标签页的行为由「跟随标签页」设置决定：`follow`（**出厂默认**）把绑定移到你切过去的新页面，`ask` 阻塞并询问留在原页面还是跟过去，`keep` 留在原页面。
 - **会话桥接**：面板提示词经 `rpc` 帧发往桌面 dsh，assistant 文本流式回传。
 - **桥接插件**：`/ext/bridge` 上的 token 认证 WebSocket，`hello` 握手协商 caps/policy，`browser_*` 工具以 `tool.call` 帧下发给扩展，特权网关方法对非回环远端一律拒绝。
 
@@ -110,7 +110,7 @@ Firefox for Android 没有侧边栏这种界面；而且桥接**在关键处只�
 
 **调用去哪**是部署配置，不是设置项 —— 面板只显示"看图"档位，不暴露任何识别相关的输入框，端点/模型/key 由部署方设定（桌面端插件配置，或扩展存储）。面板测试守住这条线：`extension/tests/control-page.spec.ts` 断言它不提供浏览器无法兑现的控件，而档位下拉是它渲染的唯一识别相关字段。
 
-**桌面中转（推荐）**：在桌面端 profile 的 `cordis.patch.yml` 里给桥接加一个 key，地址与模型已有默认值（`https://api.deepseek.com/v1` / `deepseek-flash`），思考强制关闭：
+**桌面中转（推荐）**：在桌面端 profile 的 `cordis.patch.yml` 里给桥接加一个 key，地址与模型已有默认值（`https://api.deepseek.com/v1` / `deepseek-flash`），思考默认为关：
 
 ```yaml
 - id: bridge-browser

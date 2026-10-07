@@ -63,8 +63,10 @@ dsh desktop window (the model runs here)
   sensitive-field masking.
 - **panel** (`control/`): a dependency-free vanilla-TS side panel showing the
   conversation, connection state, the controlled tab, approval cards, **the turn's
-  task list**, a short activity log, the safety settings, and the bridge address. It
+  task list**, a short activity log, and the safety settings. It
   stays open while you browse — the page beside it is the thing being operated.
+  There is deliberately no bridge-address or token field: on the supported path both
+  are decided for the user, and a text box would only suggest otherwise.
   - The task list is how a multi-step request stays legible: the model writes the
     checklist it is about to run and re-emits it with the boxes ticked, and the panel
     shows it above the run with the task in progress, the finished ones and the
@@ -113,8 +115,16 @@ archive a store receives. See [../docs/STORE.md](../docs/STORE.md).
 
 **Desktop DSH users**: the desktop app may assign a random local Web port. The
 extension auto-discovers the usual ports (3080, 3081, 3090, 14389, 43189,
-19387); if yours differs, paste `http://127.0.0.1:<port>` into the panel's
-*Bridge address*. Pinning the port to `43189` in the desktop settings keeps
+19387); if yours differs, set `bridgeUrl` to `http://127.0.0.1:<port>` in the
+extension's own storage — the panel has no field for it:
+
+```js
+chrome.storage.local.get('dshSettings').then(({ dshSettings }) =>
+  chrome.storage.local.set({ dshSettings: { ...dshSettings, bridgeUrl: 'http://127.0.0.1:<port>' } }))
+```
+
+then reload the extension (settings are read once at startup). Pinning the port
+to `43189` in the desktop settings keeps
 auto-discovery working.
 
 Pages that were already open before the extension was installed or reloaded are
@@ -127,8 +137,9 @@ or operated.
 
 - **Connects on load, not on click.** There is no button to press: the worker
   starts connecting as soon as settings are read, and a half-minute `alarms`
-  heartbeat keeps both the socket and the MV3 worker alive. *Auto connect* in
-  the panel is the one way to stop it.
+  heartbeat keeps both the socket and the MV3 worker alive. There is no switch to
+  stop it: connecting is what installing the extension means, and the panel has no
+  auto-connect control to turn off.
 - **One browser at a time.** A second open profile is told to yield (close code
   4000) instead of fighting for the slot.
 - **Nothing is read from the page until a tool asks.** Snapshots and text reads
@@ -153,9 +164,10 @@ answer one — the worker keeps running with it closed:
   tab list/follow/close run without confirmation. It is persisted, not per
   connection: it stays on until you turn it off. Protected-page DOM content stays
   inaccessible either way.
-- A manual tab or window switch pauses later tools and asks whether to stay on
-  the original page or follow the new one; *keep and stop asking* pins it.
-  Closing the controlled tab fails closed until you bind the current page.
+- What a manual tab or window switch does is the follow-tab setting: the default is
+  **follow** (later tools move to the page you went to), with **ask** (stop and ask
+  whether to stay or follow; *keep and stop asking* pins it) and **keep** (stay put) as
+  the alternatives. Closing the controlled tab fails closed until you bind the current page.
 - Password and credit-card values always render as `••••` and never leave the
   page.
 

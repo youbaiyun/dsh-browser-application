@@ -1,7 +1,7 @@
 > 中文版见 [INSTALL.zh.md](INSTALL.zh.md)
 # Installation (just follow along)
 
-Once installed you get: **the dsh desktop app reads the very page you are looking at**, and once you agree, it clicks, types, scrolls and turns pages for you.
+Once installed you get: **the dsh desktop app reads the very page you are looking at**, and then it clicks, types, scrolls and turns pages for you.
 
 The whole installation has **two parts**:
 
@@ -133,7 +133,7 @@ In this order:
 That is expected the first time: the browser only loads the extension if it is installed in it.
 Start your browser yourself, install the extension once (step 1), and from then on the desktop can
 start the browser for you — it opens **the browser you already use**, with no extra flags, and it
-refuses to open a second window when that browser is already running. When the extension turns out
+refuses to open a second window while that browser is already running with one. When the extension turns out
 not to be installed anywhere, it says so and opens the right extensions page for you.
 
 ### Do I need to find the token myself?
@@ -146,6 +146,17 @@ in the plugin config) is accepted without one. That is why discovery needs no se
 **Firefox: yes, once.** Firefox always presents the token, because its
 `moz-extension://` origin carries a per-install UUID rather than a stable add-on
 identity, so the bridge cannot tell that the connection really is this extension and
-requires the credential. The extension has no way to read that file by itself; paste
-the contents of `~/.dsh/ext-bridge-token` into the panel's settings once, and it is
-remembered from then on.
+requires the credential. The extension has no way to read that file by itself, and the
+panel has no field for it — the address and the token were deliberately removed from the
+settings sheet, because on the supported path neither is the user's decision to make. So
+on Firefox the token is written into the extension's own storage once, from the side
+panel's DevTools console:
+
+```js
+chrome.storage.local.get('dshSettings').then(({ dshSettings }) =>
+  chrome.storage.local.set({ dshSettings: { ...dshSettings, token: '<contents of ~/.dsh/ext-bridge-token>' } }))
+```
+
+Then **reload the extension**: settings are read once at startup and there is no
+`storage.onChanged` listener, so a console write is not picked up until it reloads. It is
+remembered from that point on.

@@ -13,10 +13,10 @@ listing if you add one.
 ## Short description — paste this (Chinese, the primary locale)
 
 ```
-dsh 桌面端的浏览器执行器：模型以文本读取并操作你正在用的页面，保留登录态，不截图；看图功能可选，会把你要看的那张图交给桌面端。
+dsh 桌面端的浏览器执行器：模型以文本读取并操作你正在用的页面，保留登录态，不截图；看图功能可选，会把图交给桌面端配置的模型（默认 deepseek-flash）。
 ```
 
-Length: 65 characters. The limit is 132.
+Length: 83 characters. The limit is 132.
 
 ## Detailed description — paste this (Chinese)
 
@@ -35,7 +35,7 @@ https://github.com/youbaiyun/dsh-browser-crossplatform/tree/main/skills/dsh-brow
 · 看图（可选，默认关）：读你指定的那张图。扩展带着你的登录态去取它，所以登录后
   才可见的图也能读；不截图，也不整页拍图。
 · 操作页面：点击、输入、滚动、跳转、管理标签页，只作用于你选中的那个页面。
-· 先问你：点击和输入默认都要审批。可以按站点信任，也可以只放开当前连接。
+· 确认开关：「不再询问，直接操作」出厂即开，所以新装的扩展点击和输入不会逐次弹确认；关掉它，就会改为审批，且可按站点信任、或只放开这一次连接。
 · 密码和卡号不出页面：快照里就替换掉了，传出去的文本里没有。
 · 网页不能冒充你：你在侧边栏打的每句话带来源标记，网页里写的带不上。
 · 对话就在侧边栏：你说、它答。多步任务会先列出任务表，做完一条勾掉一条，每次工具调用占一行——
@@ -56,10 +56,10 @@ https://github.com/youbaiyun/dsh-browser-crossplatform/tree/main/skills/dsh-brow
 Short description:
 
 ```
-Browser executor for the dsh desktop app: reads and operates your page, signed in, no screenshots. Image look-up optional.
+Browser executor for the dsh desktop app: reads and operates your page, signed in, no screenshots. Image look-up: deepseek-flash.
 ```
 
-Length: 122 characters, identical to `_locales/en` — copy it from `store-listing.md`
+Length: 129 characters, identical to `_locales/en` — copy it from `store-listing.md`
 rather than retyping it, because a hand-written variant of the same length fails the
 assertion in `extension/tests/locales.spec.ts`.
 

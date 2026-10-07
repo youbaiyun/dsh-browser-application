@@ -82,7 +82,7 @@ Kept in `chrome.storage.local`, which is per-profile and never synced:
 
 | Key | What it holds |
 |---|---|
-| `dshSettings` | all your choices in one object: the bridge address and token, panel behaviour, tab-switch mode, page-sharing mode, and — if this deployment configured direct recognition — the endpoint, model and key |
+| `dshSettings` | all your choices in one object: the bridge address and token, panel behaviour, tab-switch mode, page-sharing mode, and — if this deployment configured direct recognition — the endpoint, model and key. Note that page-sharing mode is **not in force while unrestricted access is on**: it is overridden to `auto` when a tool is dispatched, so a reader debugging "it read the page without asking" should look at the unrestricted switch, not at this field |
 | `dshFreshSessionId` | which conversation the panel is bound to, so it survives the worker being recycled |
 | `dshImageCache` | the description produced for each image you asked about, keyed by image address, so asking twice does not fetch or describe it twice. Bounded to the 200 most recent and expired after **24 hours**, because the worker can be stopped and restarted at any time and a memory-only memo would be lost |
 | `dshOnboardingSeen` | whether the first-run notice has been shown |
@@ -130,17 +130,31 @@ tracker is the reliable route.
 Three gates, in order:
 
 1. **You choose the tab.** The extension operates the tab you bound, not whatever
-   is in front. A manual tab switch raises a prompt rather than silently moving.
+   is in front. What a manual tab switch does is the 「AI 跟随标签页」 setting: the
+   shipped default is `follow`, which moves the binding to the tab you went to; `ask`
+   stops and asks; `keep` stays where it was. It is never inferred — the mode is read
+   from the setting, so the same switch behaves the same way every time.
 2. **The site's trust state decides.** Reads and writes are separate kinds. A site
    you have allowed for reads is not thereby allowed for writes.
-3. **Approval, unless you turned it off.** Clicking, typing and navigating fail
-   closed: with no answer, nothing happens. Approvals appear in the panel, or as a
-   system notification when the panel is closed.
+3. **Approval — when it is on.** Clicking, typing and navigating fail closed: with no
+   answer, nothing happens. Approvals appear in the panel, or as a system notification
+   when the panel is closed.
 
-Unrestricted access is a **persisted switch**, not a per-connection one: once you turn
-it on it stays on across reconnects and browser restarts until you turn it off again.
-It is off by default. Treat turning it on as a standing decision rather than a
-one-session one.
+**Approval is off in the shipped configuration, and that is the part to read carefully.**
+`unrestrictedBrowserAccess` is a **persisted switch**, not a per-connection one: once set
+it stays set across reconnects and browser restarts, and it defaults to **on**. So on a
+fresh install gate 3 does not run at all — there is no approval card, and nothing fails
+closed — and the switch is what a reader should check first when clicks or typing happen
+without a prompt. Turning it off restores gate 3, and the choice is preserved per record,
+so a user who turns it off keeps it off.
+
+It has a second effect that is easy to miss: while it is on, the tool dispatch mode is
+resolved as `sharePageContent: 'auto'`, which **overrides** the panel's 「让 AI 读取网页」
+setting. A user who chooses "ask me before reading the page" is not asked while
+unrestricted access is on. The two settings are not independent, and the panel does not
+say so; this document is where that is written down.
+
+Treat leaving it on as a standing decision rather than a one-session one.
 
 ## What the model can and cannot influence
 

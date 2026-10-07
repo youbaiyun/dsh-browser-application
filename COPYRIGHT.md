@@ -5,14 +5,28 @@ which is which so nobody has to guess.
 
 ## Upstream: the browser engine
 
-The following come from [Lum1104/dsh-browser](https://github.com/Lum1104/dsh-browser)
-and remain under its MIT license:
+The following come from the upstream browser engine and remain under its MIT license:
 
 - `packages/bridge/` — the bridge plugin
 - `extension/src/content/` — the page snapshot and action pipeline
 - `extension/src/security/` — the approval and trust model
 - `extension/src/background/` — except `session.ts`
 - `benchmark/` — the evaluation harness
+
+**Which repository that is, exactly.** The fork point was
+[`Lum1104/dsh-browser`](https://github.com/Lum1104/dsh-browser), which has since been
+renamed and transferred to **`omdsh-dev/dsh-browser`**; the old URL still resolves by
+redirect. The original name is kept here because it is the historical record of where
+this code was received from, and `omdsh-dev/dsh-browser` is the current location of the
+same project — not a different one.
+
+**The paths above are this fork's, and the layout differs.** Upstream keeps the bridge at
+`packages/browser/bridge-browser/` and the extension at `extensions/dsh-browser/`; this
+fork flattened both (`packages/bridge/`, `extension/`). Every file in the five groups
+above was checked against the current upstream tree: all five exist there. A file being
+in one of these groups means **the file originates upstream**, not that it is still
+byte-identical — this fork has since modified some of them heavily, which is what the
+MIT notice permits and what the next section delimits.
 
 At the fork point these were 78 byte-identical files and about 90% of upstream's
 lines, which is why the notice below has to be preserved. That is a condition of
@@ -46,11 +60,29 @@ Copyright (c) 2026 youbaiyun. Also MIT, on the same terms as above.
 
 The files this fork is responsible for, none of which come from upstream:
 
-- `extension/control/` — the side-panel UI (replaces the React panel)
+- `extension/control/` — the side-panel UI, dependency-free vanilla TypeScript (replaces the upstream panel)
 - `extension/src/settings.ts` — the settings model
+- `extension/src/markers.ts` — the browser-panel prompt marker (replaces upstream's
+  `selection.ts`, away from the *selection* concept and towards an origin marker)
 - `extension/src/background/session.ts` — panel-to-conversation binding
 - `skills/dsh-browser-crossplatform-troubleshooting/` — the troubleshooting skill
-- the panel's own tests, and the layout/measurement scripts under `scripts/`
+- the panel's own tests (`extension/tests/`), and the build/packaging scripts under
+  `extension/scripts/` (`build.mjs`, `package.mjs`, `extension-id.mjs`)
+
+### Same, and different
+
+Stated plainly, because "derivative" can mean anything from a rename to a rewrite:
+
+| | Upstream | This fork |
+|---|---|---|
+| **Shared** | the browser engine: content-script snapshot and action pipeline, the approval/trust model, the bridge transport, the benchmark harness | the same code, still under upstream's MIT notice |
+| **Shared** | tool surface of `browser_*`, side-panel concept, MV3 + Firefox dual build, `--load-extension`-free operation | same architecture, extended rather than replaced |
+| **Different** | the panel as upstream ships it (`panel/`, plus panel sources under `src/panel/`) | a dependency-free vanilla-TS panel under `control/`; no framework, no build-time UI dependency |
+| **Different** | `selection.ts` (selection-based prompt handling) | `markers.ts` (an origin marker the model can check mechanically) |
+| **Different** | one version number per package | one version number across four packages, asserted by a test |
+| **Different** | bridge = `packages/browser/bridge-browser/`, extension = `extensions/dsh-browser/` | `packages/bridge/`, `extension/` |
+| **Different** | ships no settings model of its own; panel owns almost no policy | `extension/src/settings.ts` owns the choices, and the panel only renders what it is handed |
+| **Added here** | — | `session.follow` / `session.unfollow`, whole-workspace mirroring, `browser_launch`, image recognition relay, the troubleshooting skill, and the plugin settings page |
 
 ## Removed on purpose
 

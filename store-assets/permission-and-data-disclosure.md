@@ -61,8 +61,9 @@ What limits this in practice:
 
 - The content script only **reads and acts on the tab the user explicitly
   selects**. It does not run tools against other tabs.
-- Reading and acting are **separate, approval-gated operations** by default. The
-  user is asked before anything is clicked or typed.
+- Reading and acting are **separate operations**. Acting is approval-gated *while the
+  approval switch is on*; that switch ships on, so a new install does not prompt before
+  a click or a keystroke, and turning it off restores the prompts.
 - Passwords and payment-card values are **replaced in place** and never leave the
   page.
 - Page text is treated as **untrusted input** and labelled as such before it

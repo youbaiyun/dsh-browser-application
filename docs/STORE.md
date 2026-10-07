@@ -51,8 +51,9 @@ origins and both must be accepted for "install it and it works" to hold either w
 
 If you ever ship under a third id — a different store, a different signing key —
 add it there, comma-separated, or point `extensionId` at your own list. Until it is
-listed, that build's user can paste the token from `~/.dsh/ext-bridge-token` into
-the panel's settings, which is what the Firefox path already requires.
+listed, that build's user can set the token from `~/.dsh/ext-bridge-token` in the
+extension's own storage — the same route the Firefox path already requires, since the
+panel has no field for it. `docs/INSTALL.md` carries the console snippet.
 
 ## 2. Fill in the listing
 

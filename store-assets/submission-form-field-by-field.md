@@ -11,7 +11,7 @@ process). If a value here disagrees with those, they win and this file is stale.
 
 | Thing | Where it is | Note |
 |---|---|---|
-| The archive to upload | `dsh-browser-crossplatform-0.38.4-store.zip` (repo root once built, ~97 KB; Firefox: `…-0.38.0-firefox.zip`) | Built by `pnpm --filter dsh-browser-extension run package`, which names each archive after the manifest inside it and refuses `\` entry names — the store rejects an archive whose entries are not `/`-separated. It needs **both** targets built (`dist/` and `dist-firefox/`) and fails if their versions disagree, so run `build` and `build:firefox` first |
+| The archive to upload | `dsh-browser-crossplatform-0.38.4-store.zip` (repo root once built, ~101 KB; Firefox: `…-0.38.4-firefox.zip`) | Built by `pnpm --filter dsh-browser-extension run package`, which names each archive after the manifest inside it and refuses `\` entry names — the store rejects an archive whose entries are not `/`-separated. It needs **both** targets built (`dist/` and `dist-firefox/`) and fails if their versions disagree, so run `build` and `build:firefox` first |
 | Store icon 128×128 | `extension/dist/assets/icons/icon128.png` | |
 | Screenshots | not produced yet; no `screenshots/` directory exists in this tree | The dashboard wants 1280×800 or 640×400, 1–5 images. Upload through the dashboard rather than committing them here |
 | Privacy policy URL | the public URL serving `PRIVACY.md` | The gist already used is fine — update its body to `PRIVACY.md`. Verified reachable without login |
@@ -34,10 +34,10 @@ English (`dsh Browser Extension`) belongs in the English listing if you add one.
 ### Short description (132 characters max)
 
 ```
-Browser executor for the dsh desktop app: reads and operates your page, signed in, no screenshots. Image look-up optional.
+Browser executor for the dsh desktop app: reads and operates your page, signed in, no screenshots. Image look-up: deepseek-flash.
 ```
 
-That is 122 characters, and it is asserted equal to `_locales/en` by
+That is 129 characters, and it is asserted equal to `_locales/en` by
 `extension/tests/locales.spec.ts` rather than counted by hand — so it must be copied
 from `store-listing.md` verbatim. A differently-worded string of a similar length
 fails that assertion (and the store compares the listing with the manifest's
@@ -45,10 +45,10 @@ description, which comes from `_locales/en`). The Chinese equivalent, if you swi
 the listing language:
 
 ```
-dsh 桌面端的浏览器执行器：模型以文本读取并操作你正在用的页面，保留登录态，不截图；看图功能可选，会把你要看的那张图交给桌面端。
+dsh 桌面端的浏览器执行器：模型以文本读取并操作你正在用的页面，保留登录态，不截图；看图功能可选，会把图交给桌面端配置的模型（默认 deepseek-flash）。
 ```
 
-That is 65 characters, and it is the `_locales/zh_CN` string word for word.
+That is 83 characters, and it is the `_locales/zh_CN` string word for word.
 
 ### Detailed description
 
@@ -89,7 +89,7 @@ Suggested screenshot order, and what each has to show:
 1. **A conversation with a tool line** — the page on the left, the panel on the
    right, a question, an answer, one tool call. This is the one that says what the
    extension is.
-2. **An approval card** — the ask, the target element, and the allow/deny buttons.
+2. **An approval card** — the ask, the target element, and the allow/deny buttons. **First turn 「不再询问，直接操作」 off**: the switch ships on, so nothing asks until it is off.
    Evidence that it does not act on its own.
 3. **The settings sheet** — evidence that the user keeps control.
 4. **`@open` having opened a page** — the clearest single feature.
@@ -140,8 +140,9 @@ full rather than a summary:
 > pattern would work: a fixed domain list would break the feature everywhere else.
 >
 > What limits it: the content script only reads and acts on the tab the user
-> explicitly selects; reading and acting are separate, approval-gated operations
-> by default; passwords and payment-card values are replaced in place and never
+> explicitly selects; reading and acting are separate operations, and approval can be
+> turned on (it ships on, so a new install acts without a per-action prompt); passwords
+> and payment-card values are replaced in place and never
 > leave the page; page text is labelled as untrusted input so a page cannot issue
 > instructions that look like the user's.
 

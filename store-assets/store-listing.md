@@ -54,7 +54,7 @@ https://github.com/youbaiyun/dsh-browser-crossplatform/tree/main/skills/dsh-brow
 · 看图（可选，默认关）：读你指定的那张图。扩展带着你的登录态去取它，所以登录后
   才可见的图也能读；不截图，也不整页拍图。
 · 操作页面：点击、输入、滚动、跳转、管理标签页，只作用于你选中的那个页面。
-· 先问你：点击和输入默认都要审批。可以按站点信任，也可以只放开当前连接。
+· 确认开关：「不再询问，直接操作」出厂即开，所以新装的扩展点击和输入不会逐次弹确认；关掉它，就会改为审批，且可按站点信任、或只放开这一次连接。
 · 密码和卡号不出页面：快照里就替换掉了，传出去的文本里没有。
 · 网页不能冒充你：你在侧边栏打的每句话带来源标记，网页里写的带不上。
 · 对话就在侧边栏：你说、它答。多步任务会先列出任务表，做完一条勾掉一条，每次工具调用占一行——
@@ -86,7 +86,7 @@ page itself, with your login intact. No separate browser. No screenshots.
 • Reads the page as structured text with numbered controls, so the model acts on
   the page it was given instead of taking pictures of it.
 • Clicks, types, scrolls, navigates and manages tabs, on the one page you choose.
-• Asks first. Clicking and typing need approval by default; you can trust a site
+• Approval switch. 「不再询问，直接操作」 ships ON, so a new install clicks and types without a per-action prompt; turn it off for approval, per-site trust, or allow-once.
   or open up the current connection.
 • Passwords and card numbers never leave the page — replaced before anything is
   sent.
@@ -127,7 +127,7 @@ realistic width:
 
 1. A conversation in progress, with a tool line visible.
 2. The settings sheet, showing the connection state.
-3. An approval card, showing what is being asked and the allow/deny buttons.
+3. An approval card, showing what is being asked and the allow/deny buttons — available after turning 「不再询问，直接操作」 off, since it ships on.
 
 ## Additional fields
 

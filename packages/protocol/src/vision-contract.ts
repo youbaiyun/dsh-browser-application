@@ -41,15 +41,20 @@ export const VISION_MARKER_CHARS = 80
 export const VISION_DECLINE = 'UNCLEAR'
 
 /**
- * The one model both recognizer paths call.
+ * The default model both recognizer paths call.
  *
- * Fixed, and defined here rather than in either caller, because a model id is
- * part of the question being asked: if the relay named one model and the
- * extension's own path named another, "which transport was free" would silently
- * change the answer. There is also only one value it can take —
- * `deepseek-v4.1-flash` is the display name and is *not* accepted by the API,
- * which answers 400 and lists `deepseek-flash` and `deepseek-v4-pro`; of those,
- * only `deepseek-flash` reports an image input modality.
+ * The relay reads it through the plugin's `visionModel` config, so a deployment can name
+ * another — it must be able to, because `visionBaseUrl` can point at another provider
+ * and a different provider has never heard of this id. What is fixed is only the
+ * *default*, and that both paths read it from here rather than each carrying its own
+ * copy: a model id is part of the question being asked, so if the relay named one model
+ * and the extension's own path named another, "which transport was free" would silently
+ * change the answer.
+ *
+ * It is the only id worth defaulting to on the DeepSeek endpoint:
+ * `deepseek-v4.1-flash` is the display name and is *not* accepted by the API, which
+ * answers 400 and lists `deepseek-flash` and `deepseek-v4-pro`; of those, only
+ * `deepseek-flash` reports an image input modality.
  */
 export const VISION_MODEL = 'deepseek-flash'
 

@@ -102,8 +102,10 @@ const DEFAULT_OPEN_PAGES_FOR_USER = true
 
 /** Chat-completions endpoint the desktop calls for image recognition. */
 const DEFAULT_VISION_BASE_URL = 'https://api.deepseek.com/v1'
-// The model is not configuration: {@link VISION_MODEL} is fixed in the shared
-// protocol, so the relay and the extension's own path cannot name different ones.
+// The *default* model, not a fixed one: {@link visionModel} can name another, because
+// {@link visionBaseUrl} can point at another provider. What is fixed is that both the
+// relay and the extension's own path read the same value through the shared
+// `VISION_MODEL` default, so "which transport was used" cannot change the answer.
 const DEFAULT_VISION_TIMEOUT_MS = 20_000
 
 /**

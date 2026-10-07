@@ -90,7 +90,7 @@ open, in this order of usefulness to someone deciding whether to install:
 
 1. A conversation with a tool line — what it is, at a glance. This is the one the
    listing shows by default.
-2. An approval card — evidence that it asks before acting.
+2. An approval card — evidence that it asks before acting. **Turn 「不再询问，直接操作」 off first**: it ships on, and while it is on no card is ever created, so a screenshot hunt will come up empty.
 3. The settings sheet — evidence that the user keeps control.
 4. `@open` having opened a page — the clearest single feature.
 5. A page snapshot with numbered controls — how it reads a page without
@@ -140,6 +140,6 @@ Notes specific to Firefox:
   `extension/tests/versions.spec.ts` fails if any of them drifts; the packaging script
   also names each archive after the manifest inside it.
 - **Watch the first reviews.** The panel's behaviour is unusual by design (no
-  screenshots, approvals by default, a text-only page channel). If users read
+  screenshots, the approval switch on by default, a text-only page channel). If users read
   that as a limitation rather than a choice, the listing description is the thing
   to fix, not the extension.
