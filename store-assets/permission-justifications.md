@@ -102,3 +102,38 @@ Publishing is blocked until the **Privacy practices** tab's closing declaration 
 "your data usage complies with the Chrome Web Store Developer Program Policies". The dashboard
 reports this as *无法发布 / You must confirm your data usage…*, which reads like a content error
 but is only an unticked box. Tick it, **save the draft**, and submit again.
+
+## The 「发布将被推迟」 warning, and why `activeTab` is not the answer
+
+Submitting with a broad host permission raises a warning — *发布将被推迟 / Publishing will be
+delayed* — that says the extension may need a deeper review. It then offers two suggestions:
+use `activeTab`, or narrow `host_permissions` to named sites. **Neither applies here, and
+narrowing the permission to shorten the queue would break the product.** Expect the delay; do
+not trade the feature for it.
+
+Why `activeTab` cannot replace it:
+
+1. **It is granted by a user gesture** — an action click, a context menu, a keyboard shortcut, or
+   the omnibox. This extension's interface is a **side panel**, and opening one does not grant
+   `activeTab`. The extension would receive no access at all.
+2. **It is revoked when the tab navigates to another origin.** The model has to keep reading and
+   acting in the same tab across navigations, which is the normal case for "go to the next page
+   and fill this in".
+3. **It lasts for one interaction, not a session.** A single request here spans many tool calls
+   over minutes.
+4. **It does not cover manifest-declared `content_scripts`.** The page reader and action executor
+   are injected that way.
+
+Why a fixed `host_permissions` list cannot replace it either: the page the user is looking at is
+not known when the manifest is written. Any list would make the feature work on those sites and
+fail on every other one.
+
+If a reviewer asks, reply with:
+
+```
+The extension operates the page the user is looking at, and that page is not known when the manifest is written — the user may be on any site. No narrower pattern would work: a fixed domain list would break the feature everywhere else.
+
+activeTab cannot replace it here, for four reasons. It is granted by a user gesture, and this extension's interface is a side panel, which does not grant it. It is revoked when the tab navigates to a different origin, while the model has to keep working in that tab across navigations. It lasts for one interaction, not for a session that spans many tool calls. And the content script injection the extension relies on is declared in the manifest, which activeTab does not cover.
+
+What limits the broad permission: the content script only reads and acts on the tab the user explicitly selects; reading and acting are separate operations; passwords and payment-card values are replaced in place in the snapshot and never leave the page; page text is labelled as untrusted input so a page cannot issue instructions that look like the user's. Approval can also be turned on, and per-site trust is available.
+```
