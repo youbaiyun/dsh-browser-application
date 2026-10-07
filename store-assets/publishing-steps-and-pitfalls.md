@@ -115,6 +115,19 @@ pnpm --filter dsh-browser-extension run build:firefox
 pnpm --filter dsh-browser-extension run package   # writes both archives, including the Firefox one
 ```
 
+**AMO requires the source code as well as the build.** The submitted package contains
+minified bundles, so the review form asks for a source archive plus instructions for reproducing
+them. Chrome does not ask for this. Attach `dsh-browser-crossplatform-<version>-source.zip`,
+built as below, and check that `SOURCE-BUILD.md` inside it still matches the real build
+commands — it is the only thing the reviewer has to go on.
+
+```sh
+# source archive: the workspace minus what can be reinstalled or regenerated
+#   include  extension/ packages/ package.json pnpm-workspace.yaml pnpm-lock.yaml
+#            SOURCE-BUILD.md LICENSE README.md COPYRIGHT.md PRIVACY.md
+#   exclude  node_modules/ dist*/ lib/ .git/ coverage/
+```
+
 Notes specific to Firefox:
 
 - The add-on id in `manifest.firefox.json` must be yours. It is currently
