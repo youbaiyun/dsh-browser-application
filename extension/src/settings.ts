@@ -130,11 +130,17 @@ export interface Settings {
    * in settings, because it is a deliberate choice rather than the panel's own
    * working session.
    *
+   * `workspace` — 「工作区内」 — mirrors every conversation in the desktop's browser
+   * workspace instead of exactly one, so instructions issued on the desktop side show
+   * up here without being picked in advance. Prompts still go to the panel's own
+   * conversation: mirroring is about watching what the desktop drives, and writing
+   * into one of the mirrored ones is a different feature.
+   *
    * The target is chosen, never guessed: the desktop exposes no "session I am
    * looking at" signal, so inferring it from recent activity would silently send
    * a message into the wrong conversation.
    */
-  sessionScope: 'fresh' | 'pinned'
+  sessionScope: SessionScope
   /**
    * The session `pinned` mode writes to; null while nothing is chosen.
    *
@@ -227,6 +233,15 @@ export interface TimelineEntry {
   at: number
   /** Correlates a step with its tool-call id when one exists. */
   callId?: string
+  /**
+   * Which conversation this row came from.
+   *
+   * The panel follows one conversation at a time in every other mode, so this is
+   * redundant there — but 「工作区内」 mirrors several at once, and without it the rows
+   * of different conversations interleave into one unreadable column, and clearing one
+   * conversation's rows would take the others' with them.
+   */
+  sessionId?: string
 }
 
 /** Everything the control strip renders from one message. */
@@ -308,7 +323,7 @@ export type ControlRequest =
    * the follower, so the panel would render an empty transcript for a busy
    * Session.
    */
-  | { type: 'session.select'; id: string; scope: 'fresh' | 'pinned'; sessionId: string | null; follow?: boolean }
+  | { type: 'session.select'; id: string; scope: SessionScope; sessionId: string | null; follow?: boolean }
   /** Execute a `browser_*` command the user typed, without involving the desktop app. */
   | { type: 'command.run'; id: string; name: string; args: Record<string, unknown> }
   /**
@@ -318,6 +333,17 @@ export type ControlRequest =
    * so "so I can see it" does not depend on the model choosing to cooperate.
    */
   | { type: 'open.run'; id: string; url: string; pace: 'fast' | 'normal' | 'slow'; pin: boolean }
+
+/**
+ * Which conversation the panel's own messages go to.
+ *
+ * - `fresh` — the panel's own conversation, created on first use.
+ * - `pinned` — one conversation the user named in settings.
+ * - `workspace` — 「工作区内」: mirror every conversation in the desktop's browser
+ *   workspace. Prompts still go to the panel's own conversation, because mirroring is
+ *   about watching the conversations the desktop drives.
+ */
+export type SessionScope = 'fresh' | 'pinned' | 'workspace'
 
 /** One desktop conversation, as much as the bridge discloses about it. */
 export interface SessionSummary {
@@ -355,9 +381,9 @@ export type ControlMessage =
   | { type: 'affinity.rebind.result'; id: string; ok: true }
   | { type: 'affinity.rebind.result'; id: string; ok: false; error: string }
   /** One assistant text delta or authoritative replacement for the active turn. */
-  | { type: 'session.stream'; event: AssistantStreamEvent }
+  | { type: 'session.stream'; event: AssistantStreamEvent; sessionLabel?: string | null }
   /** One raw `session/event` for the page to render: tools, messages, turn boundaries. */
-  | { type: 'session.event'; sessionId: string; event: unknown }
+  | { type: 'session.event'; sessionId: string; event: unknown; sessionLabel?: string | null }
   /** Answer to one session/command request; exactly one result per accepted request. */
   | { type: 'session.result'; id: string; ok: true; sessionId?: string; result?: unknown }
   | { type: 'session.result'; id: string; ok: false; error: string }
@@ -392,7 +418,9 @@ export function normalizeSettings(candidate: Partial<Settings> | undefined): Set
     approvalNotifications: source.approvalNotifications !== false,
     autoOpenPanel: source.autoOpenPanel !== false,
     tabSwitch: isTabSwitchMode(source.tabSwitch) ? source.tabSwitch : SETTINGS_DEFAULTS.tabSwitch,
-    sessionScope: source.sessionScope === 'pinned' ? 'pinned' : 'fresh',
+    sessionScope: source.sessionScope === 'pinned'
+    ? 'pinned'
+    : source.sessionScope === 'workspace' ? 'workspace' : 'fresh',
     // A pinned id is only meaningful when a session is actually named; an empty
     // or non-string value collapses to "nothing chosen" rather than sending the
     // next prompt to a session id built from junk.

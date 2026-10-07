@@ -78,6 +78,7 @@ import {
   type SessionSummary,
   type Settings,
 } from '../settings.ts'
+import type { SessionScope } from '../settings.ts'
 import type { BridgePolicy } from '@dsh-browser/protocol'
 
 const BRIDGE_KEEPALIVE_ALARM = 'dsh-bridge-keepalive'
@@ -709,6 +710,10 @@ async function startBridge(): Promise<void> {
           // connection closes the control strip, so the decision has nowhere to come
           // from; dropping it is honest, and a reconnect re-asks.
           approvals.cancelAll()
+          // Nothing can be mirrored over a socket that is gone, and the timer would
+          // only fail every ten seconds. The mode itself is remembered, so a
+          // reconnection resumes it below in `onHelloOk`.
+          stopWorkspaceRefresh()
         }
         broadcastState()
       },
@@ -716,6 +721,14 @@ async function startBridge(): Promise<void> {
       onHelloOk: (negotiated, negotiatedPolicy) => {
         caps = negotiated
         bridgePolicy = negotiatedPolicy
+        // Resume 「工作区内」 after a reconnect or a worker restart. The mode is in
+        // settings, so without this a reconnect would leave the panel showing the
+        // setting while mirroring nothing — the same "silently empty" state the mode
+        // exists to remove. Also the first chance to read the workspace path, which is
+        // what `workspaceSessions` needs to find the right group.
+        if (settings.sessionScope === 'workspace') {
+          void startWorkspaceMirror().then(() => { startWorkspaceRefresh() }, () => {})
+        }
         broadcastState()
       },
       // The user's Auto connect switch is the reconnect policy, not just the
@@ -768,18 +781,30 @@ type BridgeEventFrame = Extract<ServerFrame, { t: 'event' }>['frame']
  * mid-turn repaints from the worker's timeline instead of from a replayed log.
  */
 function routeBridgeEvent(frame: BridgeEventFrame): void {
+  // Every conversation the panel is currently showing. One in the ordinary modes, the
+  // whole mirrored set under 「工作区内」 — which is why this is a set and not an id: a
+  // frame from any of them belongs on screen.
+  const active = control.activeSessionIds()
   if (frame.method === 'session/assistant-stream') {
-    const event = assistantStreamEvent(frame.payload, control.id)
+    const event = assistantStreamEvent(frame.payload, active)
     if (event === null) return
+    // Rows created while applying this event belong to the conversation it names.
+    control.attributeTo(event.sessionId)
     control.applyStream(event)
-    postToControl({ type: 'session.stream', event })
+    postToControl({ type: 'session.stream', event, sessionLabel: control.labelFor(event.sessionId) ?? null })
     return
   }
   if (frame.method !== 'session/event') return
-  const message = sessionEventMessage(frame.payload, control.id)
+  const message = sessionEventMessage(frame.payload, active)
   if (message === null) return
+  control.attributeTo(message.sessionId)
   control.applyEvent(message.event)
-  postToControl({ type: 'session.event', sessionId: message.sessionId, event: message.event })
+  postToControl({
+    type: 'session.event',
+    sessionId: message.sessionId,
+    event: message.event,
+    sessionLabel: control.labelFor(message.sessionId) ?? null,
+  })
 }
 
 function currentBudget(): ContentBudget | undefined {
@@ -1500,6 +1525,78 @@ async function listSessions(): Promise<SessionSummary[]> {
 }
 
 /**
+ * The conversations 「工作区内」 should mirror: where the panel's browser conversations live.
+ *
+ * The bridge names the directory it groups them under in `hello.ok`, so this asks for
+ * the workspace whose `path` is that directory rather than guessing from the title —
+ * a user may have renamed the group, and a path is what the desktop keeps stable.
+ *
+ * @returns id → label, empty when the grouping is off or nothing is in it yet.
+ */
+async function workspaceSessions(): Promise<Map<string, string>> {
+  const path = bridgePolicy?.sessionWorkspacePath
+  const mirror = new Map<string, string>()
+  if (path === undefined || path === '') return mirror
+  const listed = await gatewayRpc('workspace.list', {})
+  const items = isPlainObject(listed) && Array.isArray(listed.items) ? listed.items : []
+  const wanted = items.find((item) => isPlainObject(item) && item.path === path)
+  if (!isPlainObject(wanted) || !Array.isArray(wanted.sessionIds)) return mirror
+  const title = typeof wanted.title === 'string' && wanted.title !== '' ? wanted.title : path
+  for (const id of wanted.sessionIds) {
+    if (typeof id !== 'string' || id === '') continue
+    // Labelled with the group, not with the conversation: the panel is showing several
+    // at once and each row's own title is already in the transcript.
+    mirror.set(id, title)
+  }
+  return mirror
+}
+
+/**
+ * The newest mirrored conversation, or null when the group is empty.
+ *
+ * Used as the panel's binding under 「工作区内」: typing there starts the panel's own
+ * conversation, but the transcript has to be *about* something, and the most recently
+ * active conversation in the group is the one the user is looking at.
+ *
+ * @param mirror - the mirrored conversations.
+ * @returns a session id, or null.
+ */
+function newestMirrored(mirror: ReadonlyMap<string, string>): string | null {
+  // The map preserves insertion order and `workspace.list` reports most recent first,
+  // so the first entry is the newest. No timestamps are needed, which keeps this
+  // working for a group whose order the desktop decides.
+  for (const id of mirror.keys()) return id
+  return null
+}
+
+/**
+ * Start mirroring every conversation in the browser workspace.
+ *
+ * The follower has to be opened for each one: the bridge streams a conversation's
+ * events only after someone asks, and the panel never prompts most of them. A failure
+ * to open one is tolerated — the others still mirror, and `session.follow` on a
+ * conversation that is already followed is cheap.
+ *
+ * @returns the mirrored set, so the caller can publish it to the panel.
+ */
+async function startWorkspaceMirror(): Promise<Map<string, string>> {
+  const mirror = await workspaceSessions()
+  control.setMirrored(mirror)
+  for (const id of mirror.keys()) void startFollowingSession(id)
+  const newest = newestMirrored(mirror)
+  // Rows for a conversation that left the group are dropped; the rest keep theirs.
+  control.retainSessions(new Set(mirror.keys()))
+  if (newest !== null) control.adopt(newest)
+  return mirror
+}
+
+/** Stop mirroring, dropping the extra conversations' rows. */
+function stopWorkspaceMirror(): void {
+  control.setMirrored(new Map())
+  control.retainSessions(new Set())
+}
+
+/**
  * A conversation's display name, from whichever field carries it.
  *
  * The desktop nests it at `projections.values.title`; a flat `title` is accepted too.
@@ -1556,7 +1653,7 @@ function firstPromptOf(projections: unknown): string {
  * @param scope - `fresh` for the panel's own session, `pinned` to continue one.
  * @param sessionId - the conversation to continue; required when pinned.
  */
-async function selectSessionScope(scope: 'fresh' | 'pinned', sessionId: string | null): Promise<void> {
+async function selectSessionScope(scope: SessionScope, sessionId: string | null): Promise<void> {
   // Invalidate any create still in flight before changing the target, so its
   // reply cannot adopt a session the user has just navigated away from.
   sessionGeneration += 1
@@ -1565,6 +1662,23 @@ async function selectSessionScope(scope: 'fresh' | 'pinned', sessionId: string |
   // Work already under way survives the switch; work merely queued does not,
   // because it is about to run against the conversation being moved to.
   const keep = control.inFlightRowIds(activeToolCalls.keys())
+  if (scope === 'workspace') {
+    // Mirroring does not change where a prompt goes: the panel keeps its own
+    // conversation so typing here cannot land in one of the mirrored ones by
+    // accident. The rows of the conversations being mirrored are additive, so only
+    // the ones that leave the group are dropped.
+    sessionRefresh = new Map()
+    control.detach(keep)
+    await persistSettings({ sessionScope: 'workspace', pinnedSessionId: null })
+    await startWorkspaceMirror()
+    startWorkspaceRefresh()
+    broadcastState()
+    return
+  }
+  // Leaving workspace mode: stop mirroring before the single binding takes over, so
+  // its rows are not retained by the mirror.
+  stopWorkspaceRefresh()
+  stopWorkspaceMirror()
   if (scope === 'pinned' && sessionId !== null) {
     // Continuing a different conversation than the one on screen must clear the
     // transcript: those rows belong to the session they came from.
@@ -1579,6 +1693,59 @@ async function selectSessionScope(scope: 'fresh' | 'pinned', sessionId: string |
   }
   await persistSettings({ sessionScope: scope, pinnedSessionId: scope === 'pinned' ? sessionId : null })
   broadcastState()
+}
+
+/** How often 「工作区内」 re-reads the group, so a new conversation appears on its own. */
+const WORKSPACE_REFRESH_MS = 10_000
+
+/** The refresh timer for 「工作区内」, and the set it last published. */
+let workspaceTimer: ReturnType<typeof setInterval> | null = null
+let sessionRefresh = new Map<string, string>()
+
+/** Keep the mirrored set current while the mode is on. */
+function startWorkspaceRefresh(): void {
+  stopWorkspaceRefresh()
+  workspaceTimer = setInterval(() => {
+    void startWorkspaceMirror().then(
+      (mirror) => {
+        // Only repaint when the group actually changed: the panel re-renders on every
+        // state push, and a timer that pushed unconditionally would repaint the
+        // conversation every ten seconds for no reason.
+        if (sameMirror(mirror, sessionRefresh)) return
+        sessionRefresh = new Map(mirror)
+        broadcastState()
+      },
+      () => { /* A read that failed: the next tick tries again. */ },
+    )
+  }, WORKSPACE_REFRESH_MS)
+  // Node and the worker both keep a process alive for a pending interval; this one is
+  // bookkeeping and must never be the reason the worker stays up.
+  const timer = workspaceTimer as unknown as { unref?: () => void }
+  timer.unref?.()
+}
+
+/** Stop refreshing the mirrored set. */
+function stopWorkspaceRefresh(): void {
+  if (workspaceTimer !== null) clearInterval(workspaceTimer)
+  workspaceTimer = null
+  sessionRefresh = new Map()
+}
+
+/**
+ * Whether two mirrored sets name the same conversations.
+ *
+ * Order is part of it: the newest conversation decides the panel's binding, so a
+ * reordering is a real change even when the membership is identical.
+ *
+ * @param left - one set.
+ * @param right - the other.
+ * @returns true when they are equivalent.
+ */
+function sameMirror(left: ReadonlyMap<string, string>, right: ReadonlyMap<string, string>): boolean {
+  if (left.size !== right.size) return false
+  const leftKeys = [...left.keys()]
+  const rightKeys = [...right.keys()]
+  return leftKeys.every((id, index) => id === rightKeys[index])
 }
 
 /** Milliseconds to pause between `@open` steps, by pace. */
@@ -2304,7 +2471,9 @@ chrome.runtime.onConnect.addListener((port) => {
         const select = message as { id?: unknown; scope?: unknown; sessionId?: unknown; follow?: unknown }
         if (typeof select.id !== 'string') break
         const requestId = select.id
-        const scope = select.scope === 'pinned' ? 'pinned' : 'fresh'
+        const scope: SessionScope = select.scope === 'pinned'
+          ? 'pinned'
+          : select.scope === 'workspace' ? 'workspace' : 'fresh'
         const sessionId = typeof select.sessionId === 'string' && select.sessionId.trim() !== ''
           ? select.sessionId.trim()
           : null

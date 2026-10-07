@@ -54,6 +54,29 @@ are listed only where this fork has something to say about them; see
   are all refused, which is what keeps the bypass from becoming "any extension
   installed".
 
+- **「工作区内」: the panel mirrors a whole workspace, so nothing has to be picked in
+  advance.** The other two modes mirror exactly one conversation, which meant an
+  instruction issued on the desktop was only visible here if that conversation had been
+  chosen beforehand — and choosing it was the hard part, because the desktop publishes
+  no "session I am looking at" signal. A third option now reads the desktop's browser
+  workspace and follows *every* conversation in it, so work started on the desktop side
+  appears on its own.
+  - The group is identified by the **path** the bridge names in the handshake
+    (`policy.sessionWorkspacePath`), not by its title: a user may rename 「浏览器对话」,
+    and a path is what the desktop keeps stable.
+  - A follower is opened per conversation, since the bridge streams nothing until
+    someone asks and the panel never prompts most of them. Joining a group mid-flight
+    and a conversation appearing later are both handled — the set is re-read every ten
+    seconds, and only a real change repaints the panel.
+  - Timeline rows now carry the conversation they came from, so the mirrored
+    transcripts do not interleave into one column. Leaving the mode, or a conversation
+    leaving the group, drops only the affected rows.
+  - Prompts still go to the panel's own conversation. Mirroring is about watching what
+    the desktop drives; writing into one of the mirrored conversations is a different
+    feature and is deliberately not part of this.
+  - Also fixed on the way: switching to any other mode stops the mirror, and a lost
+    connection stops the refresh timer rather than failing every ten seconds.
+
 ### Fixed
 
 - **A prompt could be delivered to the conversation the user had just left.** Creating

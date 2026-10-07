@@ -125,6 +125,8 @@ export interface ControlCopy {
     conversation: string
     conversationFresh: string
     conversationPinned: string
+  /** Label of the 「工作区内」 mode. */
+  conversationWorkspace: string
     conversationHelp: string
     conversationPick: string
     conversationLoading: string
@@ -246,7 +248,8 @@ const ZH: ControlCopy = {
     conversation: '对话发到',
     conversationFresh: '新开一段',
     conversationPinned: '当前对话',
-    conversationHelp: '你在这里打的话，发到桌面端哪段对话。选「当前对话」，再从下面挑一段。',
+  conversationWorkspace: '工作区内',
+    conversationHelp: '你在这里打的话，发到桌面端哪段对话。「当前对话」从列表里挑一段；「工作区内」自动同步该工作区里的所有对话（只读镜像，你打的字仍发到本面板自己的对话）。',
     conversationPick: '选择对话',
     conversationLoading: '正在读取…',
     conversationNone: '请选择…',
@@ -359,7 +362,8 @@ const EN: ControlCopy = {
     conversation: 'Send messages to',
     conversationFresh: 'A new chat',
     conversationPinned: 'Current chat',
-    conversationHelp: 'Which desktop conversation receives what you type here. Pick "Current chat", then choose one below.',
+  conversationWorkspace: 'In the workspace',
+    conversationHelp: 'Which desktop conversation receives what you type here. "Current chat" picks one from a list; "In the workspace" mirrors every conversation in the workspace automatically (a read-only mirror — what you type still goes to this panel\'s own conversation).',
     conversationPick: 'Choose a conversation',
     conversationLoading: 'Reading…',
     conversationNone: 'Choose one…',

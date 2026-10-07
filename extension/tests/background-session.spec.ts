@@ -170,6 +170,21 @@ function rpcFrame(socket: FakeWebSocket, method: string): SentFrame | undefined 
 }
 
 /**
+ * Every frame sent for one method.
+ *
+ * Needed where a feature legitimately sends the same call several times — 「工作区内」
+ * opens one follower per conversation — and a helper returning "the first match" would
+ * report the same frame twice.
+ *
+ * @param socket - the fake connection.
+ * @param method - the gateway method to collect.
+ * @returns the frames, in send order.
+ */
+function rpcFrames(socket: FakeWebSocket, method: string): SentFrame[] {
+  return sent(socket).filter((frame) => frame.t === 'rpc' && frame.method === method)
+}
+
+/**
  * `vi.waitFor` with a budget for a busy machine.
  *
  * Its default is one second, and a full-suite run has 42 spec files in flight at once:
@@ -910,6 +925,41 @@ describe('conversation routing', () => {
         ok: false,
         error: expect.stringContaining('unavailable'),
       }))
+    })
+  })
+
+  it('mirrors every conversation in the browser workspace under 「工作区内」', async () => {
+    // The mode exists so an instruction issued on the desktop shows up here without
+    // being picked in advance. Two things have to happen for that: the group is read
+    // from the path the bridge names (not guessed from a title, which the user can
+    // rename), and a follower is opened per conversation — the bridge streams nothing
+    // until someone asks, and the panel never prompts most of them.
+    const { control, socket } = await boot({}, { openPagesForUser: true, sessionWorkspacePath: 'C:\\Users\\u\\.dsh\\browser-sessions' } as never)
+    control.onMessage.emit({ type: 'session.select', id: 's1', scope: 'workspace', sessionId: null })
+    const listed = await waitForRpc(socket, 'workspace.list')
+    answerRpc(socket, listed, {
+      ok: true,
+      value: {
+        items: [
+          // Another group must not be mirrored, even though it has conversations.
+          { workspaceId: 'w-other', path: 'C:\\elsewhere', title: 'other', sessionIds: ['session-other'] },
+          { workspaceId: 'w-browser', path: 'C:\\Users\\u\\.dsh\\browser-sessions', title: '浏览器对话', sessionIds: ['session-a', 'session-b'] },
+        ],
+      },
+    })
+    // One follower per conversation, and only for the named group. Read from the
+    // frames the worker actually sent rather than from one `waitForRpc`: the two
+    // requests race, and a helper that returns "the first matching frame" would
+    // report the same one twice.
+    await waitFor(() => {
+      expect(rpcFrames(socket, 'session.follow')).toHaveLength(2)
+    })
+    expect(rpcFrames(socket, 'session.follow').map((frame) => frame.payload?.sessionId).sort())
+      .toEqual(['session-a', 'session-b'])
+    // The mode is remembered, so a reconnect resumes it rather than silently showing
+    // the setting while mirroring nothing.
+    await waitFor(() => {
+      expect(latestState(control.postMessage)?.settings.sessionScope).toBe('workspace')
     })
   })
 

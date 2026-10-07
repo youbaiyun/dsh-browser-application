@@ -45,10 +45,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * @param activeSessionId - the session this worker drives, if any.
  * @returns the port event to forward, or null when it is not this session's.
  */
-export function assistantStreamEvent(payload: unknown, activeSessionId: string | null): AssistantStreamEvent | null {
-  if (activeSessionId === null || !isRecord(payload)) return null
+export function assistantStreamEvent(payload: unknown, activeSessionIds: ReadonlySet<string>): AssistantStreamEvent | null {
+  if (!isRecord(payload)) return null
   const sessionId = payload.sessionId
-  if (typeof sessionId !== 'string' || sessionId !== activeSessionId) return null
+  if (typeof sessionId !== 'string' || !activeSessionIds.has(sessionId)) return null
   const frame = payload.frame
   if (!isRecord(frame)) return null
   if (frame.type !== 'snapshot') return { sessionId, kind: 'delta', payload: frame }
@@ -83,11 +83,11 @@ function streamFrame(event: AssistantStreamEvent): Record<string, unknown> | und
  */
 export function sessionEventMessage(
   payload: unknown,
-  activeSessionId: string | null,
+  activeSessionIds: ReadonlySet<string>,
 ): { sessionId: string; event: unknown } | null {
-  if (activeSessionId === null || !isRecord(payload)) return null
+  if (!isRecord(payload)) return null
   const sessionId = payload.sessionId
-  if (typeof sessionId !== 'string' || sessionId !== activeSessionId) return null
+  if (typeof sessionId !== 'string' || !activeSessionIds.has(sessionId)) return null
   const event = payload.event
   if (!isRecord(event)) return null
   return { sessionId, event }
@@ -164,6 +164,33 @@ export class ControlSession {
     return this.sessionId
   }
 
+  /**
+   * Every conversation whose events this worker forwards to the panel.
+   *
+   * One entry in the ordinary modes — the conversation the panel is bound to — plus
+   * whatever 「工作区内」 mirrors. Always a set, so the event router does not have to
+   * know which mode is in force.
+   */
+  activeSessionIds(): ReadonlySet<string> {
+    const ids = new Set(this.mirrored.keys())
+    if (this.sessionId !== null) ids.add(this.sessionId)
+    return ids
+  }
+
+  /**
+   * The extra conversations being mirrored, keyed by id, with the label to show.
+   *
+   * @param sessions - the conversations 「工作区内」 is mirroring; empty to stop.
+   */
+  setMirrored(sessions: ReadonlyMap<string, string>): void {
+    this.mirrored = new Map(sessions)
+  }
+
+  /** The label for one mirrored conversation, for the panel's row headers. */
+  labelFor(sessionId: string): string | undefined {
+    return this.mirrored.get(sessionId)
+  }
+
   /** The `ControlState.session` slice. */
   session(): ControlState['session'] {
     return { id: this.sessionId, turn: this.turn, pendingPrompt: this.pendingPrompt }
@@ -189,6 +216,67 @@ export class ControlSession {
       if (entry.kind === 'request' && entry.state === 'pending') ids.add(entry.id)
     }
     return ids
+  }
+
+  /**
+   * Forget every conversation except the ones named, keeping rows that belong to none.
+   *
+   * 「工作区内」 mirrors a set of conversations, and the set changes as the desktop
+   * starts and archives work. This is the narrow version of {@link detach}: a
+   * conversation that left the set loses its rows, while the others keep theirs —
+   * which is what makes the mode readable at all, since clearing everything would
+   * wipe the conversations the user is still watching.
+   *
+   * @param keep - sessions still being mirrored.
+   */
+  retainSessions(keep: ReadonlySet<string>): void {
+    const dropped = this.entries.filter((entry) => entry.sessionId !== undefined && !keep.has(entry.sessionId))
+    if (dropped.length === 0) return
+    const kept = this.entries.filter((entry) => entry.sessionId === undefined || keep.has(entry.sessionId))
+    this.entries.length = 0
+    this.entries.push(...kept)
+    // A row that vanishes while its conversation is gone must not leave the panel
+    // claiming a turn is still running for it.
+    if (dropped.some((entry) => entry.sessionId === this.sessionId)) {
+      this.turn = 'idle'
+      this.committedText = []
+      this.attemptText = ''
+      this.assistantRowId = null
+    }
+    this.sinks.changed()
+  }
+
+  /**
+   * Which conversation the rows being created right now belong to.
+   *
+   * Set by the event router before it applies anything, and read by `push`, so that
+   * 「工作区内」 can mirror several conversations at once without every row-producing
+   * method having to carry a session id. It is `null` for the panel's own transcript,
+   * where the binding is the only conversation there is.
+   */
+  private attributedSessionId: string | null = null
+
+  /** Extra conversations 「工作区内」 is mirroring: id → label. Empty in every other mode. */
+  private mirrored = new Map<string, string>()
+
+  /**
+   * Name the conversation the next rows belong to.
+   *
+   * @param sessionId - the conversation being applied, or null for the panel's own.
+   */
+  attributeTo(sessionId: string | null): void {
+    this.attributedSessionId = sessionId
+  }
+
+  /**
+   * Tag a row with the conversation it came from.
+   *
+   * @param entry - the row about to be appended.
+   * @returns the row, with `sessionId` set when one is being attributed.
+   */
+  private attributed(entry: TimelineEntry): TimelineEntry {
+    if (this.attributedSessionId === null) return entry
+    return { ...entry, sessionId: this.attributedSessionId }
   }
 
   /**
@@ -236,6 +324,9 @@ export class ControlSession {
       text,
       state: 'pending',
       at: Date.now(),
+      // The conversation the next prompt goes to, which in workspace mode is the
+      // panel's own session rather than any of the ones being mirrored.
+      ...(this.sessionId === null ? {} : { sessionId: this.sessionId }),
     }
     this.push(entry)
     // Set before the gateway answers rather than after admission: the first
@@ -479,7 +570,7 @@ export class ControlSession {
   }
 
   private push(entry: TimelineEntry): void {
-    this.entries.push(entry)
+    this.entries.push(this.attributed(entry))
     if (this.entries.length > TIMELINE_LIMIT) {
       this.entries.splice(0, this.entries.length - TIMELINE_LIMIT)
     }

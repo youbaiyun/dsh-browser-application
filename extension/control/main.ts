@@ -1101,6 +1101,7 @@ export class App {
     for (const [value, label] of [
       ['fresh', this.copy.settings.conversationFresh],
       ['pinned', this.copy.settings.conversationPinned],
+      ['workspace', this.copy.settings.conversationWorkspace],
     ] as const) {
       const option = el('option', { text: label, attributes: { value } })
       if (settings.sessionScope === value) option.selected = true
@@ -1109,6 +1110,13 @@ export class App {
     select.addEventListener('change', () => {
       if (select.value === 'fresh') {
         void this.port.call({ type: 'session.select', id: '', scope: 'fresh', sessionId: null })
+        return
+      }
+      if (select.value === 'workspace') {
+        // No target to pick: the mode mirrors whatever the desktop's browser workspace
+        // holds, and the worker reads that set itself. Asking for the conversation list
+        // here would be the wrong list — it is every conversation, not the group.
+        void this.port.call({ type: 'session.select', id: '', scope: 'workspace', sessionId: null })
         return
       }
       // Switching to "continue" needs a target: ask for the list and let the

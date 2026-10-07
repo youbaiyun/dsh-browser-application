@@ -649,7 +649,13 @@ function mountBridge(
       snapshotMaxChars: resolved.snapshotMaxChars,
       maxInteractiveItems: resolved.maxInteractiveItems,
     },
-    policy: { openPagesForUser: resolved.openPagesForUser },
+    policy: {
+      openPagesForUser: resolved.openPagesForUser,
+      // Named so the extension's 「工作区内」 mode mirrors the right group rather than
+      // guessing a path. Omitted when the grouping is switched off, which is exactly
+      // when there is nothing for that mode to mirror.
+      ...(resolved.sessionWorkspacePath === '' ? {} : { sessionWorkspacePath: resolved.sessionWorkspacePath }),
+    },
     ...(imageRelay === undefined ? {} : { imageRelay }),
     ...(imageRelay === undefined ? { visionUnavailableReason: VISION_UNAVAILABLE_REASON } : {}),
     injectBrowserSnapshot: (sessionId, snapshot) => { browserContext.inject(sessionId, snapshot) },

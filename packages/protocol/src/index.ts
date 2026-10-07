@@ -62,6 +62,15 @@ export interface BridgeCaps {
 export interface BridgePolicy {
   openPagesForUser: boolean
   /**
+   * Directory the bridge groups browser conversations under.
+   *
+   * Sent so the extension can name the right workspace instead of guessing: the
+   * 「工作区内」 mode mirrors every conversation in that group, and a wrong path would
+   * mirror an unrelated one — or none at all. Absent in a deployment that opted out of
+   * the grouping, which is exactly when the mode has nothing to mirror.
+   */
+  sessionWorkspacePath?: string
+  /**
    * The desktop will recognize images on the extension's behalf.
    *
    * Absent means "no vision model configured here", not "unsupported": the
@@ -267,6 +276,7 @@ export function isPolicy(value: unknown): value is BridgePolicy {
     && typeof value.openPagesForUser === 'boolean'
     && (value.imageRecognition === undefined || typeof value.imageRecognition === 'boolean')
     && (value.imageRecognitionHint === undefined || typeof value.imageRecognitionHint === 'string')
+    && (value.sessionWorkspacePath === undefined || typeof value.sessionWorkspacePath === 'string')
 }
 
 function isImageRequest(value: unknown): value is ImageRecognitionRequest {
