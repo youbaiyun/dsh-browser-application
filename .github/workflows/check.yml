@@ -1,0 +1,81 @@
+# Every push and pull request, checked the way a release is.
+#
+# The build runs before the tests on purpose: two assertions skip themselves without a
+# build — the e2e in the bridge and the licence-notice check in the extension —
+# so building first is what makes them actually run here instead of reporting green.
+#
+# The e2e drives the built extension through Playwright's chromium API. It must use
+# Playwright's own Chromium: system Chrome/Edge 137+ ignores --load-extension, and a
+# skip is silent, so pointing this job at /usr/bin/google-chrome used to turn the e2e
+# into a green no-op. The browser is installed below and its path is exported.
+name: Check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+        with:
+          # Matches the pnpm this project is developed against.
+          version: 11
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install from the lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the bridge and both extension targets
+        run: |
+          pnpm --filter dsh-browser-crossplatform run build
+          pnpm --filter dsh-browser-extension run build
+          pnpm --filter dsh-browser-extension run build:firefox
+
+      - name: Package both store archives
+        # Fails the build if the packer regresses (it refuses backslash entries and
+        # names each archive after the manifest inside it).
+        run: pnpm --filter dsh-browser-extension run package
+
+      - name: Install the e2e browser and point the suite at it
+        run: |
+          pnpm --dir benchmark install-browser
+          # Resolved through playwright-core's own registry, so the path cannot
+          # drift from the browser version that the lockfile pins.
+          chromium="$(node benchmark/lib/chromium-path.mjs)"
+          echo "PLAYWRIGHT_CHROMIUM_PATH=$chromium" >> "$GITHUB_ENV"
+          "$chromium" --version
+
+      - name: Typecheck
+        # Forced, not incremental. `tsc -b` keeps a build cache in lib/, and a stale one
+        # has already reported a green typecheck for a file that did not compile.
+        run: |
+          pnpm --filter dsh-browser-crossplatform exec tsc -b --force
+          pnpm --filter @dsh-browser/protocol run typecheck
+          pnpm --filter dsh-browser-extension run typecheck
+
+      - name: Benchmark tooling unit tests
+        # No model, no browser, no dsh: this only checks the harness itself, which is
+        # otherwise the least-exercised code in the repository.
+        run: pnpm --dir benchmark test
+
+      - name: Test
+        # Sequentially, not in parallel. `pnpm -r run test` runs the workspace packages
+        # at once, which puts the bridge's end-to-end suite (a real Chromium) alongside
+        # the extension suite on the same cores. One extension test asserts that exactly
+        # one WebSocket was opened, and a discovery retry that is merely slow under that
+        # contention opens a second one. Running the packages in turn keeps the check
+        # meaningful instead of occasionally red.
+        #
+        # DSH_E2E_COLD_START opts the launch-path test in: it starts a browser, which
+        # must never happen behind a developer's back, so it is off by default.
+        env:
+          DSH_E2E_COLD_START: '1'
+        run: pnpm -r --workspace-concurrency=1 run test

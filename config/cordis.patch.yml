@@ -1,0 +1,56 @@
+# Your patch layer for this dsh profile, applied after every bundle layer:
+# a top-level YAML array of loader patch entries (id-targeted config
+# overrides, disables, and insert lists; `!!js` expressions allowed).
+#
+# This copy is a sanitized template: every machine-specific absolute path has
+# been replaced with a placeholder. Replace them before restoring the file —
+# see README-what-these-are-and-how-to-restore.md, which also lists the
+# placeholder convention:
+#   <DSH_HOME>       your dsh home (default ~/.dsh, %USERPROFILE%\.dsh on Windows)
+#   <WORKSPACE_DIR>  any directory you actually use as a workspace
+- id: agent-default-model
+  name: "@deepseek-ai/dsh-agent-default-model"
+  config:
+    provider: deepseek-account
+    model: deepseek-flash
+    reasoningEffort: high
+- id: ui-settings-account
+  name: "@deepseek-ai/dsh-client-ui-settings-account"
+  config:
+    version: 1
+    step: done
+    purpose: null
+    process: standard
+    completion: skipped
+    usage: compact
+    developerTools: false
+- id: ui-chat
+  name: "@deepseek-ai/dsh-client-ui-chat"
+  config:
+    transcriptView: standard
+    performanceUsage: compact
+- id: ui-settings
+  name: "@deepseek-ai/dsh-client-ui-settings"
+  config:
+    enabled: false
+- id: agent-preset-registry
+  name: "@deepseek-ai/dsh-agent-preset-registry"
+  config:
+    default: standard
+    selectedDefault: cordis
+# 用户级技能目录挂载（默认位置 <DSH_HOME>\skills）。
+# base 包 cordis 预设里的 skill-filesystem 行依赖
+# createRequire(baseUrl).resolve('@deepseek-ai/dsh-agent-preset/package.json')，
+# 该包在本 profile 的 node_modules 下无法解析，`!!js` 抛错会让整行加载失败，
+# 于是技能目录里只剩插件自带的 skill。这里直接挂一个显式根的提供方。
+# 注意：插件市场会重写本文件，中文注释可能被它弄成乱码，属于显示问题，不影响加载。
+- insert:
+    - id: user-skill-filesystem
+      name: "@deepseek-ai/dsh-skill-filesystem"
+      config:
+        providerName: user-skills
+        includeDefaultRoots: true
+        customSkillDirs:
+          - '<DSH_HOME>\skills'
+- id: bridge-browser
+  disabled: false

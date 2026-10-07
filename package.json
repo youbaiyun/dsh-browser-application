@@ -1,0 +1,15 @@
+{
+  "name": "dsh-browser",
+  "version": "0.38.0",
+  "description": "Text-only browser control for the dsh desktop app: an MV3 extension plus its bridge plugin.",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm --filter @dsh-browser/bridge run build && pnpm --filter dsh-browser-extension run build",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test"
+  }
+}

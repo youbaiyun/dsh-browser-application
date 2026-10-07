@@ -1,0 +1,24 @@
+node_modules/
+dist/
+dist-firefox/
+# Build output of the packages. The bridge plugin's compiled entry lives here and the
+# desktop loads it, but it is produced by `pnpm build`, so it is not a source.
+lib/
+*.tsbuildinfo
+*.log
+.DS_Store
+# Vite's per-target caches, written next to the configs during a build.
+.vite/
+.vite-temp/
+
+# Release archives and the signed package.
+#
+# `dsh-browser-crossplatform-<version>.zip` / `…-firefox.zip` are produced by
+# `pnpm --filter dsh-browser-extension run package`; they are build products and a
+# committed copy goes stale silently (the 0.37.1 pair sat in the root long after the
+# tree moved on). `dist.crx` / `dist.pem` are the packed extension and the private
+# signing key behind its stable id — the key must never be in the repository.
+dsh-browser-crossplatform-*.zip
+dist.crx
+dist.pem
+*.pem

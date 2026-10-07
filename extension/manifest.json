@@ -1,0 +1,59 @@
+{
+  "manifest_version": 3,
+  "name": "__MSG_extensionName__",
+  "description": "__MSG_extensionDescription__",
+  "default_locale": "en",
+  "version": "0.38.0",
+  "minimum_chrome_version": "116",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArHTr1wBt2mCuztv27kIpzH4in0MHG6GjT4Wg7Zna2dXaf5EfBRWoUy3AL2Xhv5fiBzLX2PQqCrQHA3VDyE1KQm5x4UoV3lM6HCXGnOAi5QzuVcWPuvwmv42T0vRR3yMAazS4iuO1aB5YNFsi6v/deG7Jk+hIkp89scKHXmG9iTX/dKifCEC7nzbArJQ+Ozid/wNgiC8QzFxnTYFaWIGBG6eiEfXs+S0aPtYMh3kbNNAjdrw/0S1UCXcccQMjjX3Z+hjAghF0FI5Ltz3u4TK6jIdYEUV4ntMzsyjhPI9tLAR/kPePgbKQ+f6kpKF3IPgcqBh9EaIHyFAqX1heFfpOKwIDAQAB",
+  "permissions": [
+    "sidePanel",
+    "storage",
+    "tabs",
+    "scripting",
+    "webNavigation",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "__MSG_actionTitle__",
+    "default_icon": {
+      "16": "assets/icons/icon16.png",
+      "32": "assets/icons/icon32.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "control/index.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true,
+      "match_origin_as_fallback": true
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src ws://127.0.0.1:* http://127.0.0.1:* https: http:"
+  },
+  "icons": {
+    "16": "assets/icons/icon16.png",
+    "32": "assets/icons/icon32.png",
+    "48": "assets/icons/icon48.png",
+    "128": "assets/icons/icon128.png"
+  }
+}

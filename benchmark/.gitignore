@@ -1,0 +1,9 @@
+# Benchmark run artifacts.
+#
+# `results/` holds one JSONL file per run and a runtime/ directory with the generated
+# effective patch and the dsh logs; `workspace/` is the session workspace the backends
+# write into. Both are products of a run, not sources, so only the placeholders stay.
+results/*
+!results/.gitkeep
+workspace/*
+!workspace/.gitkeep

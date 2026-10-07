@@ -1,0 +1,17 @@
+{
+  "name": "dsh-browser-benchmark",
+  "private": true,
+  "version": "0.38.0",
+  "type": "module",
+  "description": "Paired benchmark: this extension's bridge against a Playwright baseline on the same model, profile and tasks.",
+  "scripts": {
+    "install-browser": "node lib/browser-install.mjs chromium",    "probe": "node probe.mjs",
+    "run": "node run.mjs",
+    "smoke": "node run.mjs --smoke",
+    "report": "node report.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.50.0"
+  }
+}

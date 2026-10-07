@@ -1,0 +1,25 @@
+# Replace the extension-backed browser tools with the benchmark Playwright
+# adapter while preserving the same DSH web profile, model and session API.
+
+- id: bridge-browser
+  disabled: true
+
+- id: session-persistence-jsonl
+  config:
+    root: !!js process.env.BENCHMARK_SESSION_ROOT
+
+- id: storage-json
+  config:
+    root: !!js process.env.BENCHMARK_STORAGE_ROOT
+
+- insert:
+    - id: benchmark-playwright-browser
+      # The runner replaces this portable placeholder with a file:// URL in an
+      # effective patch under benchmark/results/runtime/.
+      name: __BENCHMARK_PLAYWRIGHT_PLUGIN__
+      config:
+        startUrl: !!js process.env.BENCHMARK_START_URL
+        executablePath: !!js process.env.PLAYWRIGHT_CHROMIUM_PATH
+        headless: true
+        snapshotMaxChars: 32000
+        maxInteractiveItems: 60

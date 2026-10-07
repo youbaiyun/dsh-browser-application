@@ -1,0 +1,23 @@
+{
+  "name": "dsh-profile-desktop",
+  "private": true,
+  "dependencies": {
+    "@tt-a1i/archify-dsh": "^0.1.0",
+    "dsh-browser-crossplatform": "link:.dsh-browser-source",
+    "dsh-cost-meter": "^1.8.2",
+    "dshmarket": "^1.66.6"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-web-app",
+        "dsh-cost-meter",
+        "dshmarket",
+        "@tt-a1i/archify-dsh",
+        "dsh-browser-crossplatform",
+        "@deepseek-ai/dsh-experimental-voice-input-bundle"
+      ]
+    }
+  }
+}

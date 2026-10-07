@@ -1,0 +1,29 @@
+# Browser bridge layer for the dsh `web` profile.
+#
+# `dsh plugin --profile web add` registers this package's `dsh.bundle`
+# manifest, so both the repository launcher and `npx @deepseek-ai/dsh@0.2.0-rc.2 web`
+# apply this patch without an extra command-line option.
+#
+# On first boot the plugin generates a bearer token and persists it at
+# ~/.dsh/ext-bridge-token (chmod 0600). Local extensions discover the bridge
+# without manual token entry. To pin a fixed token for a remote deployment,
+# set DSH_EXT_TOKEN and reference it below.
+# Extension-created sessions default to the ~/.dsh/browser-sessions workspace.
+# Set DSH_BROWSER_SESSION_WORKSPACE to choose another path, or to an empty
+# string to keep those sessions Ungrouped.
+# Sessions materialize only on the first message (deferSessionCreate defaults
+# to true): opening the side panel without chatting leaves no session behind.
+#
+# Security: the bridge path carries its own token auth and refuses privileged
+# gateway methods (settings/credentials/open-*) for non-loopback remotes. Do
+# not run `dsh web --host 0.0.0.0` on untrusted networks with this layer.
+
+- insert:
+    - id: bridge-browser
+      name: 'dsh-browser-crossplatform'
+      config:
+        token: !!js process.env.DSH_EXT_TOKEN
+        sessionWorkspacePath: !!js process.env.DSH_BROWSER_SESSION_WORKSPACE
+        toolTimeoutMs: 90000
+        snapshotMaxChars: 32000
+        maxInteractiveItems: 60

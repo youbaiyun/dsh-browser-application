@@ -1,0 +1,18 @@
+# Four packages, one version: 0.38 is what the desktop plugin list shows for the
+# bridge, and the extension, the protocol and the root move with it so a checkout
+# has a single version to compare against a release.
+packages:
+  - packages/*
+  - extension
+  # The paired benchmark is a workspace member so its one devDependency
+  # (`playwright-core`, for the baseline browser) installs with the same command
+  # as everything else — `pnpm install`. It is not published and not part of the
+  # build; it is here so the runner has a browser that still honors
+  # `--load-extension`, which system Chrome 137+ does not.
+  - benchmark
+
+allowBuilds:
+  esbuild: true
+
+# Peers are declared explicitly and installed by the root; do not guess.
+autoInstallPeers: false

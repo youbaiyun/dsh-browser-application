@@ -1,0 +1,38 @@
+[
+  {
+    "id": "order_lookup",
+    "name": "订单金额读取",
+    "category": "read",
+    "description": "从一组顺序随 seed 变化的订单中找到目标金额。"
+  },
+  {
+    "id": "notification_toggle",
+    "name": "通知设置",
+    "category": "single-action",
+    "description": "启用邮件通知并保存设置。"
+  },
+  {
+    "id": "contact_form",
+    "name": "联系信息表单",
+    "category": "form",
+    "description": "填写三个字段并提交。"
+  },
+  {
+    "id": "inventory_filter",
+    "name": "库存筛选",
+    "category": "search",
+    "description": "按 SKU 和最高价格筛选后读取唯一结果。"
+  },
+  {
+    "id": "cart_checkout",
+    "name": "购物车结算",
+    "category": "multi-step",
+    "description": "找到指定商品、加入购物车、修改数量并结算。"
+  },
+  {
+    "id": "lazy_load",
+    "name": "懒加载记录",
+    "category": "dynamic",
+    "description": "滚动到底部、加载更多记录并读取目标代码。"
+  }
+]

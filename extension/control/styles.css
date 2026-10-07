@@ -1,0 +1,706 @@
+/*
+ * The side panel reads as a conversation.
+ *
+ * Deliberately close to the desktop client: a scrolling transcript, one
+ * paragraph style for the model, a quiet bubble for your own message, a single
+ * line for anything the model runs, and a composer pinned to the bottom. No
+ * cards, no progress counters, no artwork, no images.
+ *
+ * Typography is the client's own stack, which leads with Segoe UI on Windows:
+ * that is both the requested Microsoft look and what the client renders with.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Type */
+  --font-ui: var(--dsw-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif);
+  --font-mono: "Cascadia Mono", "SF Mono", "JetBrains Mono", "Fira Code", Consolas,
+    "Liberation Mono", Menlo, "PingFang SC", "Microsoft YaHei", monospace;
+  /*
+   * The desktop client's own type metrics, measured from its stylesheet: body 14px
+   * on a 22px line, secondary 13px on 20px, section titles 16px on 26px at weight
+   * 600. Matching these is most of what makes a panel read as the same software.
+   */
+  --fs-chat: 14px;
+  --fs-meta: 13px;
+  --lh-chat: 22px;
+  --lh-meta: 20px;
+
+  /*
+   * Rhythm. Two steps exist because something uses them, not to complete a
+   * scale: `--space-5` and `--space-6` were declared and referenced nowhere, so
+   * they were removed. Adding a step back is cheap when a rule needs it.
+   */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+
+  /* Corners */
+  --r-xs: 4px;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+
+  /* Light */
+  --bg: #ffffff;
+  --bg-subtle: #f6f8fa;
+  --bg-raised: #ffffff;
+  --bg-sunken: #f0f2f5;
+  --bg-hover: rgb(0 0 0 / 5%);
+  --bg-active: rgb(0 0 0 / 9%);
+  --bg-bubble: #f0f2f5;
+  --bg-code: #f6f8fa;
+  --scrim: rgb(15 17 21 / 36%);
+
+  --text: #0f1115;
+  --text-secondary: #61666b;
+  --text-tertiary: #81858c;
+
+  --border: rgb(0 0 0 / 10%);
+  --border-strong: rgb(0 0 0 / 18%);
+  --divider: rgb(0 0 0 / 7%);
+
+  --accent: #4d6bfe;
+  --accent-hover: #3f5cf0;
+  --accent-soft: rgb(77 107 254 / 10%);
+  --on-accent: #ffffff;
+  --link: #4d6bfe;
+
+  --success: #14803c;
+  --warning: #a15c00;
+  --warning-soft: #fff6e5;
+  --danger: #c22f2f;
+
+  --focus-ring: #4d6bfe;
+  --header-h: 44px;
+
+  /*
+   * A comfort cap only.
+   *
+   * The transcript and the composer stop growing past this width so a very wide
+   * panel does not produce mile-long lines, and it is raised by the settings
+   * sheet when the user wants more. It never makes the content narrower than
+   * the panel: below the cap, the full width is used.
+   */
+  --panel-max: 640px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1b1c1f;
+    --bg-subtle: #212225;
+    --bg-raised: #232427;
+    --bg-sunken: #2a2b2f;
+    --bg-hover: rgb(255 255 255 / 6%);
+    --bg-active: rgb(255 255 255 / 10%);
+    --bg-bubble: #2a2b2f;
+    --bg-code: #212225;
+    --scrim: rgb(0 0 0 / 50%);
+
+    --text: #f2f3f5;
+    --text-secondary: #b4b8be;
+    --text-tertiary: #8b9097;
+
+    --border: rgb(255 255 255 / 12%);
+    --border-strong: rgb(255 255 255 / 20%);
+    --divider: rgb(255 255 255 / 8%);
+
+    --accent: #7c92ff;
+    --accent-hover: #93a5ff;
+    --accent-soft: rgb(124 146 255 / 16%);
+    --on-accent: #10131f;
+    --link: #93a5ff;
+
+    --success: #4cd07d;
+    --warning: #f0b429;
+    --warning-soft: #3a2f18;
+    --danger: #ff7b72;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; margin: 0; }
+
+/*
+ * The mount point must carry a height, or nothing below it can resolve one.
+ *
+ * The chain is html → body → this → .app → .sheet. A percentage height needs a
+ * parent with a definite height, so leaving this element unstyled broke the
+ * whole chain: `.app` and `.sheet` both fell back to content height, which put
+ * the settings sheet in a short box with dead space under it.
+ */
+#control-root { height: 100%; }
+
+body {
+  font-family: var(--font-ui);
+  font-size: var(--fs-chat);
+  line-height: var(--lh-chat);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+button { font: inherit; color: inherit; }
+
+/*
+ * A side panel's width belongs to the browser, not to this document.
+ *
+ * The user drags the panel edge and Chrome remembers that width; there is no
+ * extension API to read, set, or lock it. So the layout must simply be correct
+ * at any width instead of being pinned to one: every row fills the panel, and
+ * `--panel-max` is only a comfort cap for a very wide panel, never a column the
+ * content is boxed into. Anything narrower than the cap is used in full.
+ */
+body { overflow-x: hidden; }
+
+:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; border-radius: var(--r-xs); }
+
+/* ------------------------------------------------------------------ *
+ * Shell: header, transcript, composer
+ * ------------------------------------------------------------------ */
+
+/* The turn's task list. It sits above the run so "how far along is this?" is
+   always answerable without scrolling: one row per task, states carried by the
+   mark and the row colour rather than by wording the reader has to decode. */
+.plan {
+  margin: var(--space-2) 0 var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.plan__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.plan__title {
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.plan__count {
+  font-size: var(--fs-meta);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.plan__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.plan__task {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--fs-chat);
+  line-height: var(--lh-chat);
+  color: var(--text);
+}
+
+/* Reserved space, so text does not shift sideways as a task gains its mark. */
+.plan__mark {
+  flex: 0 0 1.1em;
+  text-align: center;
+  color: var(--text-tertiary);
+}
+
+.plan__task--pending { color: var(--text-secondary); }
+.plan__task--active { color: var(--text); font-weight: 600; }
+.plan__task--done { color: var(--text-secondary); }
+.plan__task--done .plan__mark { color: var(--accent); }
+.plan__task--done .plan__text { text-decoration: line-through; text-decoration-color: var(--border-strong); }
+.plan__task--failed { color: var(--danger); }
+.plan__task--failed .plan__mark { color: var(--danger); }
+
+.app {
+  position: relative;
+  display: grid;
+  /* `minmax(0, 1fr)` on the transcript row, or the row grows to its content and
+     pushes the composer off the bottom of a short panel. */
+  grid-template-rows: var(--header-h) minmax(0, 1fr) auto;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  /* The client's own title-row metrics: 14px of horizontal padding, 12px between
+     what sits in the row. */
+  gap: 12px;
+  padding: 0 var(--space-1) 0 14px;
+  border-bottom: 1px solid var(--divider);
+  background: var(--bg);
+}
+
+.header__spacer { flex: 1 1 auto; }
+
+.header__tab {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: 62%;
+  color: var(--text-tertiary);
+  font-size: var(--fs-meta);
+}
+
+.header__tab-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.header__actions { display: flex; align-items: center; gap: 2px; flex: none; }
+
+.dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-tertiary); margin-right: var(--space-1); }
+.dot--connected { background: var(--success); }
+.dot--connecting, .dot--reconnecting { background: var(--warning); }
+.dot--stopped { background: var(--danger); }
+
+/* ------------------------------------------------------------------ *
+ * Transcript
+ * ------------------------------------------------------------------ */
+
+.transcript {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-4) var(--space-3) var(--space-2);
+  min-height: 0;
+  scrollbar-gutter: stable;
+}
+
+.transcript__inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: var(--panel-max);
+  min-width: 0;
+  margin: 0 auto;
+}
+
+.msg { display: flex; flex-direction: column; min-width: 0; }
+.msg--tool { align-items: flex-start; }
+
+.msg__text, .msg__bubble, .tool-line, .tool-detail { min-width: 0; max-width: 100%; }
+
+/* Your own turn, right-aligned in a quiet bubble. */
+.msg--user { align-items: flex-end; }
+
+.msg__bubble {
+  max-width: 88%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-lg);
+  background: var(--bg-bubble);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The model's turn: plain text, full width, like the client. */
+.msg--assistant { align-items: stretch; }
+.msg__text { overflow-wrap: anywhere; color: var(--text); }
+
+.caret {
+  display: inline-block;
+  width: 7px;
+  height: 15px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: var(--text);
+  border-radius: 1px;
+  animation: caret 1s steps(2, start) infinite;
+}
+
+@keyframes caret { 50% { opacity: 0; } }
+
+/* One line per tool the model ran: visible, but never the subject. */
+.tool-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: var(--fs-meta);
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.tool-line:hover { color: var(--text-secondary); }
+.tool-line__icon { flex: none; width: 14px; height: 14px; }
+.tool-line__icon--running { color: var(--accent); }
+.tool-line__icon--failed { color: var(--danger); }
+.tool-line__icon--denied { color: var(--warning); }
+.tool-line__text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.tool-detail {
+  margin: var(--space-1) 0 var(--space-2) 22px;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--divider);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ *
+ * Markdown
+ * ------------------------------------------------------------------ */
+
+.msg__text > :first-child { margin-top: 0; }
+.msg__text > :last-child { margin-bottom: 0; }
+.msg__text p { margin: 0 0 var(--space-3); }
+.msg__text h1, .msg__text h2, .msg__text h3, .msg__text h4, .msg__text h5, .msg__text h6 {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: 1em;
+  font-weight: 600;
+}
+.msg__text ul, .msg__text ol { margin: 0 0 var(--space-3); padding-left: 1.4em; }
+.msg__text li { margin: var(--space-1) 0; }
+.msg__text a { color: var(--link); text-decoration: none; }
+.msg__text a:hover { text-decoration: underline; }
+.msg__text blockquote {
+  margin: 0 0 var(--space-3);
+  padding: 0 var(--space-3);
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-secondary);
+}
+.msg__text hr { margin: var(--space-4) 0; border: none; border-top: 1px solid var(--divider); }
+
+.msg__text code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  padding: 0.15em 0.35em;
+  border-radius: var(--r-xs);
+  background: var(--bg-code);
+}
+
+.msg__text pre {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--bg-code);
+  border: 1px solid var(--divider);
+  overflow-x: auto;
+}
+
+.msg__text pre code { padding: 0; background: none; font-size: 11.5px; line-height: 1.55; }
+.msg__text table { width: 100%; border-collapse: collapse; margin: 0 0 var(--space-3); font-size: var(--fs-meta); }
+.msg__text th, .msg__text td { border: 1px solid var(--border); padding: var(--space-1) var(--space-2); text-align: left; }
+.msg__text th { background: var(--bg-subtle); font-weight: 600; }
+
+/* ------------------------------------------------------------------ *
+ * Approvals and notices
+ * ------------------------------------------------------------------ */
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--bg-subtle);
+  border: 1px solid var(--divider);
+  font-size: var(--fs-meta);
+}
+
+.notice--warning { background: var(--warning-soft); border-color: transparent; }
+.notice__body { min-width: 0; }
+.notice__title { font-weight: 600; }
+.notice__action { margin-top: var(--space-2); }
+
+.notice__text { color: var(--text-secondary); margin-top: 2px; overflow-wrap: anywhere; }
+.notice__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+
+.approval { border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--space-3); background: var(--bg-raised); }
+.approval__ask { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.approval__summary { margin: var(--space-1) 0 0; overflow-wrap: anywhere; }
+.approval__origin { margin: var(--space-1) 0 0; font-size: var(--fs-meta); color: var(--text-tertiary); overflow-wrap: anywhere; }
+.approval__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+
+
+.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 40vh; text-align: center; color: var(--text-tertiary); }
+/* The client's section-title scale, so the empty state reads as a hero rather than
+   as a stray word in a void. */
+.empty__title { font-size: 16px; line-height: 26px; font-weight: 600; color: var(--text-secondary); }
+
+/* ------------------------------------------------------------------ *
+ * Composer
+ * ------------------------------------------------------------------ */
+
+.composer-wrap { padding: var(--space-1) var(--space-3) var(--space-3); }
+.composer { width: 100%; max-width: var(--panel-max); margin: 0 auto; }
+
+.composer__box {
+  display: flex;
+  /*
+   * The button stays on the last line of text.
+   *
+   * With the textarea carrying no padding of its own, its box now ends exactly
+   * where its text ends, so bottom alignment puts the button next to the final
+   * line rather than below a block of empty space.
+   */
+  align-items: flex-end;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-1) var(--space-2) var(--space-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.composer__box:focus-within { border-color: var(--text-tertiary); }
+
+.composer__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  min-height: 0;
+  /*
+   * A fixed cap, not a fraction of the window.
+   *
+   * `40vh` meant the input claimed 40% of a tall panel and, worse, resized
+   * itself when the user dragged the browser window — the same draft occupied a
+   * different amount of screen depending on the monitor. 160px is about eight
+   * lines: enough for a paragraph, small enough that the conversation keeps the
+   * rest. Past it the field scrolls, and `autoGrow` stops at the same number.
+   */
+  max-height: 160px;
+  /*
+   * No padding on the textarea itself.
+   *
+   * `autoGrow` sizes it from `scrollHeight`, which *includes* padding, so any
+   * padding here inflates the box by that amount on every keystroke — a one-line
+   * draft rendered 1.8 lines tall and grew by an extra 0.8 lines each time, and
+   * the send button looked like it floated in the middle because the field was
+   * much taller than its text. The box already supplies the padding.
+   */
+  padding: 0;
+  margin: 0;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow-y: auto;
+  font: inherit;
+  line-height: 1.5;
+  color: var(--text);
+  background: transparent;
+}
+
+/*
+ * The placeholder must not make the field taller than its text.
+ *
+ * A textarea sizes itself from its own content, but a placeholder that wraps to
+ * more lines than the value does is still measured by the browser on some
+ * platforms. Keeping it on one line is what makes the empty state exactly one
+ * line tall.
+ */
+.composer__input::placeholder {
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.composer__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2) 0;
+  min-height: 16px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.composer__error { color: var(--danger); }
+
+/* ------------------------------------------------------------------ *
+ * Buttons
+ * ------------------------------------------------------------------ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 30px;
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  font-size: var(--fs-meta);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 100ms ease;
+}
+
+.btn:hover { background: var(--bg-hover); }
+.btn:active { background: var(--bg-active); }
+.btn:disabled { color: var(--text-tertiary); cursor: default; background: transparent; }
+/*
+ * The client draws an explicit focus ring rather than trusting the user agent's,
+ * and a panel that is keyboard-reachable should announce that the same way.
+ */
+/*
+ * Focus is shown with a neutral emphasis, not the brand colour.
+ *
+ * The client draws its own ring rather than trusting the user agent's, but a blue
+ * one turns the whole composer into an accent block the moment the field is
+ * touched, which reads as a state the user did not ask for. A darker neutral is
+ * visible in both themes and stays quiet.
+ */
+.btn:focus-visible { outline: 2px solid var(--text-tertiary); outline-offset: 1px; }
+.select:focus-visible, .field:focus-visible { outline: 2px solid var(--text-tertiary); outline-offset: 1px; }
+
+/*
+ * Monochrome, like the client's own primary action: the strongest neutral instead
+ * of the brand colour, so sending a message is not the loudest thing on screen. Both
+ * ends are theme tokens, so it inverts correctly on its own.
+ */
+/*
+ * An outlined send button: white fill, a hairline in the text colour, and the icon
+ * in that same colour (`icon()` paints with `currentColor`).
+ *
+ * Filled and brand-coloured made the smallest control on screen the loudest thing
+ * on it. An outline reads as a control without becoming the subject, and both ends
+ * are theme tokens, so it inverts on its own in dark mode.
+ */
+.btn--primary { background: var(--bg); color: var(--text); border: 1px solid var(--text); }
+.btn--primary:hover { background: var(--bg-hover); }
+.btn--primary:disabled { background: transparent; border-color: var(--border-strong); color: var(--text-tertiary); }
+.btn--outlined { border-color: var(--border-strong); }
+.btn--icon { width: 30px; min-height: 30px; padding: 0; border-radius: var(--r-sm); color: var(--text-secondary); }
+
+/*
+ * The composer's own icon button is one line tall.
+ *
+ * A 30px control beside a 21px line is taller than the text it sits next to, so
+ * bottom alignment left it visibly below the last line, and the gap grew with
+ * every added line. Scoped here rather than on `.btn--icon` because the header
+ * buttons share that class and a 21px tap target would be a worse trade.
+ */
+.composer__box .btn--icon { width: 26px; min-height: 0; height: 26px; }
+
+/* ------------------------------------------------------------------ *
+ * Settings sheet
+ * ------------------------------------------------------------------ */
+
+/*
+ * The settings overlay is anchored to the viewport, not to an ancestor.
+ *
+ * `absolute` would resolve against `.app`, which makes it depend on the whole
+ * height chain being correct. `fixed` cannot be caught by a broken link in that
+ * chain, and the overlay covers the same box either way, so it is the safer of
+ * the two for something that must never appear half-sized.
+ */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  border: none;
+  padding: 0;
+  background: var(--scrim);
+  cursor: default;
+}
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  /* The head is exactly one header row; the body takes the rest and is the only
+     thing that scrolls. `minmax(0, 1fr)` is load-bearing: with a bare `1fr` the
+     row can grow to its content, which is what cut the sheet off halfway down
+     and left the rest of the panel blank. */
+  grid-template-rows: var(--header-h) minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.sheet__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border-bottom: 1px solid var(--divider);
+  min-width: 0;
+}
+
+.sheet__title { font-size: var(--fs-meta); font-weight: 600; }
+
+.sheet__body {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  min-width: 0;
+  padding: var(--space-1) var(--space-3) var(--space-3);
+  overscroll-behavior: contain;
+  /* Rows keep their natural height instead of being stretched down the page, so
+     the sheet reads as a filled list rather than a form floating in whitespace. */
+  align-content: start;
+}
+
+.setting { padding: var(--space-2) 0; border-bottom: 1px solid var(--divider); }
+.setting:last-child { border-bottom: none; }
+.setting__row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.setting__label { font-size: var(--fs-chat); }
+/* A read-only state chip: the desktop app owns this value, so the panel states it rather than offering a control. */
+.badge {
+  flex: none;
+  padding: 1px 8px;
+  font-size: var(--fs-meta);
+  color: var(--text-tertiary);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+}
+
+.badge--on { color: var(--accent); border-color: var(--accent-soft); background: var(--accent-soft); }
+
+.setting__help { margin-top: 2px; font-size: var(--fs-meta); color: var(--text-tertiary); line-height: 1.45; }
+
+/* The save action sits with its fields rather than at the end of the page. */
+.setting__actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+
+
+.switch { position: relative; flex: none; width: 34px; height: 20px; }
+.switch input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.switch__track { display: block; width: 34px; height: 20px; border-radius: var(--r-pill); background: var(--border-strong); transition: background 120ms ease; }
+.switch__thumb { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / 25%); transition: transform 120ms ease; }
+.switch input:checked ~ .switch__track { background: var(--accent); }
+.switch input:checked ~ .switch__thumb { transform: translateX(14px); }
+.switch input:focus-visible ~ .switch__track { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+.select {
+  flex: none;
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  font-size: var(--fs-meta);
+  color: var(--text);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}

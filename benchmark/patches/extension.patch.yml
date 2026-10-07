@@ -1,0 +1,28 @@
+# Keep the installed extension bridge active, but isolate benchmark-generated
+# sessions and workspace metadata from normal DSH data.
+
+- id: session-persistence-jsonl
+  config:
+    root: !!js process.env.BENCHMARK_SESSION_ROOT
+
+- id: storage-json
+  config:
+    root: !!js process.env.BENCHMARK_STORAGE_ROOT
+
+- id: bridge-browser
+  disabled: true
+
+- insert:
+    # Replaced by the runner with the built local package's file:// URL. A new
+    # id is intentional: DSH patch layers reject changing an existing row's
+    # module name, and developer profiles may install this package under an
+    # alias that does not match its declared package name.
+    - id: benchmark-extension-bridge
+      name: __BENCHMARK_BRIDGE_PLUGIN__
+      config:
+        token: !!js process.env.DSH_EXT_TOKEN
+        sessionWorkspacePath: !!js process.env.DSH_BROWSER_SESSION_WORKSPACE
+        deferSessionCreate: false
+        toolTimeoutMs: 90000
+        snapshotMaxChars: 32000
+        maxInteractiveItems: 60
