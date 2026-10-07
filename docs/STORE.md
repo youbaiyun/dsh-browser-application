@@ -38,10 +38,11 @@ the id itself.
 ### The consequence to expect
 
 **A store install presents an id the development build never had.** The bridge's
-token-free path names the ids it trusts in `extensionId`, and as of 0.38.3 that
+token-free path names the ids it trusts in `extensionId`, and as of 0.38.4 that
 default lists both `DEFAULT_EXTENSION_IDS` entries in
-`packages/bridge/src/index.ts`: the development id the manifest `key` derives, and
-the id the Chrome Web Store assigned. A store install therefore connects with no
+`packages/bridge/src/index.ts`: the development id the manifest `key` derives
+(`kdhkdgfcinfkmogifamoapmheihhcjfk`), and the id the Chrome Web Store assigned
+(`agipnijjkpomaannkjkjliggoffdiaf`). A store install therefore connects with no
 configuration.
 
 Both are named on purpose, and one is not a fallback for the other: the store

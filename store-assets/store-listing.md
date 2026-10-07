@@ -28,10 +28,10 @@ agree.
 ## Short description (132 characters max)
 
 ```
-Browser executor for the dsh desktop app: reads and operates your page, signed in, no screenshots. Image look-up optional.
+Browser executor for the dsh desktop app: reads and operates your page, signed in, no screenshots. Image look-up: deepseek-flash.
 ```
 
-Count: 122 characters. Asserted equal to `_locales/en` by `extension/tests/locales.spec.ts`.
+Count: 129 characters. Asserted equal to `_locales/en` by `extension/tests/locales.spec.ts`.
 
 ## Detailed description
 

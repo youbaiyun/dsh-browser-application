@@ -5,141 +5,159 @@ This project is a derivative of
 are listed only where this fork has something to say about them; see
 [COPYRIGHT.md](COPYRIGHT.md) for which files belong to whom.
 
-## [0.38.3]
+## [0.38.4]
+
+This release is the 「工作区内」 feature line in full, plus the pass that made it cheap
+enough to ship. `0.38.3` was published before any of it existed, so nothing here changes
+what that version does; it is a new number because the bridge gained a method and the
+extension gained a mode.
+
+### Changed
+
+- **The shipped defaults changed, so a fresh install behaves differently.** Three
+  settings now start where this project's own configuration ended up after living with
+  the extension:
+  - `unrestrictedBrowserAccess: true` — a new install answers no approval prompt for the
+    browser tools; clicking, typing and closing tabs proceed. It also overrides
+    `sharePageContent`, forcing it to `auto` at the point the dispatch mode is resolved,
+    so it takes precedence over a user who chose to be asked before a page is read. The
+    strip spells the trade out and turns it off, and the switch is per-record, so a user
+    who turns it off keeps it off.
+  - `sessionScope: 'workspace'` — the panel mirrors the desktop's browser workspace
+    instead of starting a conversation of its own.
+  - `tabSwitch: 'follow'` — the model follows the tab the user moved to rather than
+    interrupting to ask.
+  - **Upgrading users are not silently switched.** Their stored record is read before the
+    bridge connects (`settingsReady` gates `startBridge`), so an existing choice — including
+    `unrestrictedBrowserAccess: false` — is what applies. Only a record that says nothing
+    about a field inherits the new default, which is the case for a genuinely fresh
+    install.
+  - Normalisation for `unrestrictedBrowserAccess` and `sessionScope` was also wrong in a
+    way that would have hidden this: both fell back to a hard-coded literal rather than to
+    `SETTINGS_DEFAULTS`, so changing the default had no effect on the normalised result.
+    Both now reference the default, and `unrestrictedBrowserAccess` keeps a real `false`
+    instead of collapsing every unreadable value to `false`.
 
 ### Added
-
-- **The panel can follow a conversation the desktop app is driving.** Until now a
-  panel only ever showed a conversation it had prompted itself, because prompting is
-  what opens the event follower on the bridge. A panel *watching* a conversation
-  driven from the desktop received nothing at all: the worker drops every event
-  whose Session is not the one it is bound to (`assistantStreamEvent` and
-  `sessionEventMessage` both compare against `control.id`), and nothing bound it to
-  a running Session. The visible symptom was an empty transcript in the extension
-  for a conversation the desktop client showed in full — including conversations in
-  the desktop's own 浏览器对话 workspace, which is where the browser work happens.
-  - The bridge gains `session.follow`: open the follower for a named Session
-    without invoking a gateway method, so it is read-only by construction and
-    cannot change a Session's state or admit a turn.
-  - `session.select` gains `follow`, requested *after* the binding moves so the
-    follower streams the conversation the panel now shows. A follow that fails does
-    not fail the switch — the binding is correct either way and only live updates
-    are missing, which keeps a bridge without the method usable.
-  - The panel's conversation picker sets it, so choosing 「当前对话」 and picking a
-    conversation is what starts the mirroring.
-  - **A failed follow is now visible.** It was the one failure with no surface: the
-    panel stayed correctly bound, received nothing, and looked exactly like a
-    conversation with nothing in it. The commonest cause is a desktop app still
-    running an older bridge — one that answers `session.follow` with `not-found` —
-    and the only fix is to restart it, which no one can guess from an empty panel.
-    The worker now turns that specific failure into a panel notice naming the fix,
-    and clears it once a follow succeeds.
-  - The follow call is skipped when the socket is already gone instead of racing the
-    teardown, which used to log an unhandled rejection on the way down.
-  - The notice is dropped when the connection changes, because it describes the
-    connection that produced it; and only the newest follow request may write it, so a
-    slow failure for a conversation the user already left cannot overwrite the news
-    that the one they are looking at works. Requesting a follow no longer delays the
-    picker's acknowledgement: the switch is local and already done.
-
-- **A Chrome Web Store install connects with no configuration.** `extensionId` now
-  takes a comma-separated list of ids (`DEFAULT_EXTENSION_IDS`), and the default names
-  two: this repository's development id — the one the manifest `key` derives — and
-  `agipnijjkpomaannkjkjliggoffdiaf`, the id the Chrome Web Store assigned. One build
-  genuinely has two possible ids, because the store refuses a manifest carrying `key`
-  and then assigns its own, so a development load and a store install present
-  different origins. Previously only the development id was named, which meant every
-  store user had to paste a token in by hand. Matching is still exact per entry — an
-  unlisted id, a *prefix* of a listed one, another scheme, and an empty configuration
-  are all refused, which is what keeps the bypass from becoming "any extension
-  installed".
 
 - **「工作区内」: the panel mirrors a whole workspace, so nothing has to be picked in
   advance.** The other two modes mirror exactly one conversation, which meant an
   instruction issued on the desktop was only visible here if that conversation had been
   chosen beforehand — and choosing it was the hard part, because the desktop publishes
-  no "session I am looking at" signal. A third option now reads the desktop's browser
+  no "session I am looking at" signal. The third option reads the desktop's browser
   workspace and follows *every* conversation in it, so work started on the desktop side
   appears on its own.
   - The group is identified by the **path** the bridge names in the handshake
     (`policy.sessionWorkspacePath`), not by its title: a user may rename 「浏览器对话」,
-    and a path is what the desktop keeps stable.
-  - A follower is opened per conversation, since the bridge streams nothing until
-    someone asks and the panel never prompts most of them. Joining a group mid-flight
-    and a conversation appearing later are both handled — the set is re-read every ten
-    seconds, and only a real change repaints the panel.
-  - Timeline rows now carry the conversation they came from, so the mirrored
-    transcripts do not interleave into one column. Leaving the mode, or a conversation
+    and a path is what the desktop keeps stable. Absent when the grouping is switched
+    off, which is exactly when the mode has nothing to mirror.
+  - A follower is opened per conversation, because the bridge streams nothing until
+    someone asks and the panel never prompts most of them.
+  - Timeline rows carry the conversation they came from, so several mirrored transcripts
+    do not interleave into one unreadable column. Leaving the mode, or a conversation
     leaving the group, drops only the affected rows.
   - Prompts still go to the panel's own conversation. Mirroring is about watching what
-    the desktop drives; writing into one of the mirrored conversations is a different
-    feature and is deliberately not part of this.
-  - Also fixed on the way: switching to any other mode stops the mirror, and a lost
-    connection stops the refresh timer rather than failing every ten seconds.
-  - **The bridge had to change for this to be possible at all, and that is the part
-    worth reading.** It kept a single Session follower per connection, and opening a
-    new one aborted the previous — so asking for nineteen conversations left exactly
-    one streaming while the panel looked like it was working. Followers are now kept
-    per Session, with each one's own abort controller and its own notion of being
-    current; the shared generation counter that decided "am I still wanted?" is gone
-    too, because a counter shared by the whole connection made every other Session look
-    replaced the moment a new one was followed — the same failure reached a different
-    way. Re-asking for a Session already followed is a no-op, which matters because the
-    extension asks on every refresh tick.
+    the desktop drives; writing into a mirrored conversation is a different feature and
+    is deliberately not part of this.
+  - **In its steady state it follows only the conversations that are actually live.**
+    Following every member of a workspace costs one server-side stream per member to
+    watch the one or two producing something, and a group grows as conversations
+    accumulate. There is no poll-free signal to use instead — `workspace/follow` pushes
+    only its baseline and a workspace's own `updatedAt` moves on membership rather than
+    activity — so the mode reads cheap metadata: `updatedAt` moves when a conversation
+    produces an event and stays put when it does not, and `running` marks a turn in
+    flight. A conversation that starts working is followed on the next tick; one that
+    goes quiet is dropped. A turn in flight is kept however long ago it last emitted, so
+    a slow turn is not dropped halfway through. Entering the mode still mirrors the whole
+    group once, which is what brings an existing transcript on screen.
+- **The bridge can follow several Sessions at once**, which the mode above needs. It
+  kept a single follower per connection and opening a new one aborted the previous, so
+  asking for nineteen conversations left exactly one streaming while the panel looked
+  like it was working. Followers are now keyed by Session, each with its own abort
+  controller and its own notion of being current; the shared generation counter that
+  decided "am I still wanted?" is gone too, because a counter shared by the whole
+  connection made every *other* Session look replaced the moment a new one was followed
+  — the same failure reached a different way. Re-asking for a Session already followed
+  is a no-op, which matters because the extension asks on every refresh tick.
+- **`session.unfollow`, so streams are released when the mirror shrinks.** It takes the
+  set still being watched rather than the set to close: the extension's mirror is the
+  authority, so a bridge that missed an earlier change still converges on exactly the
+  streams wanted, and naming a conversation that is not followed is a no-op. Without it,
+  leaving the mode left the bridge reading every conversation it had ever opened until
+  the connection ended. The extension posts it best-effort and swallows a failure, since
+  the two halves upgrade separately — an older bridge answers with an error and the only
+  consequence is that streams are held a little longer.
+- **A Chrome Web Store install connects with no configuration.** `extensionId` now takes
+  a comma-separated list of ids (`DEFAULT_EXTENSION_IDS`), defaulting to this
+  repository's development id and `agipnijjkpomaannkjkjliggoffdiaf`, the id the Chrome
+  Web Store assigned. One build genuinely has two possible ids, because the store
+  refuses a manifest carrying `key` and then assigns its own. Matching stays exact per
+  entry — an unlisted id, a *prefix* of a listed one, another scheme, and an empty
+  configuration are all refused.
 
 ### Fixed
 
-- **A prompt could be delivered to the conversation the user had just left.** Creating
-  or restoring a conversation is a round trip, and picking another one during it
-  correctly stopped the *adoption* — but the resolved id was still handed to
-  `sessionRpc.prompt`, so the message landed in the abandoned conversation while its
-  row was drawn in the one the user chose. The binding is now re-checked after the
-  await and the send is refused with a sentence that says to send it again.
-- **A refused `browser_type` wrote the typed value into the activity list.** The
-  refusal quotes the value it could not match — `has no option matching "<value>"` —
-  which put a password or a token into `ControlState.activity` and the timeline, the
-  two places `activity.ts` promises never to echo typed text. The reason is kept and
-  the value is replaced by its length; the model gets the identical text either way.
+- **`browser_launch` claimed a windowless browser was running.** A Chromium process
+  outlives its last window and the extension keeps its socket open while it does, so
+  "a connection exists" said nothing about whether there was a page to act on. The tool
+  answered "already running and connected" to someone looking at no browser at all, and
+  every page tool then failed with "no active tab". `launchBrowser` had the same blind
+  spot in its own early return. The bridge now asks the window manager (PowerShell
+  `MainWindowHandle` on Windows, System Events on macOS) how many windows the running
+  browsers own, and acts only on a **definite** "none": an unsupported platform, a shell
+  that will not run, and a probe that throws all degrade to "unknown", because a wrong
+  `false` opens a browser window nobody asked for.
+- **A prompt could be delivered to the conversation the user had just left.** Creating or
+  restoring a conversation is a round trip, and picking another one during it correctly
+  stopped the *adoption* — but the resolved id was still handed to `sessionRpc.prompt`.
+  The binding is now re-checked after the await and the send is refused with a sentence
+  that says to send it again.
+- **A refused `browser_type` wrote the typed value into the activity list.** The refusal
+  quotes the value it could not match, which put a password or a token into
+  `ControlState.activity` and the timeline — the two places `activity.ts` promises never
+  to echo typed text. The reason is kept and the value is replaced by its length.
 - **A duplicate `tool.call` id could hang the revocation barrier forever.** A second
   frame with an id already in the map replaced the entry, and the replaced call's
-  close-out then returned early at an identity check — so its one-shot `settle()` never
-  fired and `cancelAllToolCalls()` could no longer reach it. `settled` is what
+  close-out then returned early — so its one-shot `settle()` never fired and
+  `cancelAllToolCalls()` could no longer reach it. `settled` is what
   `revokeUnrestrictedAccess()` awaits, so "unrestricted access = off" cleared in memory
-  but never reached `storage.local`, and an MV3 restart restored it. The superseded call
-  is now settled before it is replaced.
+  but never reached `storage.local`, and an MV3 restart restored it.
 - **A cancelled image-recognition call still uploaded the image.** The relay path sent
-  `image.call` without checking the abort signal first, so a call cancelled while
-  queued behind another image was dispatched anyway — the user's image sent for an
-  answer nobody was waiting for, and billed. `DirectRecognizer` already guarded this.
-- **Page content that happened to carry a `tabs` array was reported as a tab listing.**
-  The tally is now read only for `browser_list_tabs`; any other wrapped result is page
-  content, and describing a read as a listing is worse than describing it as nothing.
+  `image.call` without checking the abort signal first, so a call cancelled while queued
+  behind another image was dispatched anyway — the user's image sent for an answer
+  nobody was waiting for, and billed.
+- **A failed `session.follow` was the one failure with no surface.** The panel stayed
+  correctly bound, received nothing, and looked exactly like a conversation with nothing
+  in it — which is what a desktop app running an older bridge produces. The worker now
+  turns that specific failure into a panel notice naming the fix, and clears it once a
+  follow succeeds or the connection changes.
+- **The conversation picker was unreadable, and two field bugs caused it.** `listSessions`
+  read `item.title`, which does not exist — the desktop nests it at
+  `projections.values.title` — so every conversation was labelled "Untitled". A fifth of
+  the list was not conversations at all: every delegated sub-agent is a Session of its
+  own, so the picker filled with rows called "You are a senior code reviewer", now
+  filtered on `origin`/`parentSessionId`. And it now shows the opening prompt, which is
+  the fact that actually distinguishes two conversations whose titles collide by design.
+- **Two hooks that were written and never called, and were real gaps rather than
+  tidiness.** A relay recognition in flight could not be settled when the socket
+  dropped, so it waited out its full timeout; an approval the user could no longer answer
+  stayed open, because losing the connection closes the control strip and the decision
+  then has nowhere to come from.
 
-- **`browser_launch` claimed a windowless browser was running.** A Chromium process
-  outlives its last window — closing the window can leave the process resident, and
-  the extension keeps its socket open while it does — so "a connection exists" said
-  nothing about whether there was a page to act on. The tool answered "already
-  running and connected; call browser_snapshot" to someone looking at no browser at
-  all, and every page tool then failed with "no active tab". `launchBrowser` had the
-  same blind spot in its own early return, so the tool could not have got past it
-  even if it had tried.
-  - The bridge now asks the window manager (PowerShell `MainWindowHandle` on Windows,
-    System Events on macOS) how many windows the running browsers own, and only acts
-    on a **definite** "none". An answer it cannot get — an unsupported platform, a
-    shell that will not run — keeps the old behaviour, because a wrong `false` opens a
-    browser window the user did not ask for. A probe that throws degrades to the same
-    "unknown".
-  - With a definite zero, the launch runs in a new `windowless` mode that gets past
-    `launchBrowser`'s connected early return, so the resident process is asked to open
-    a window — which is also what brings the extension back.
+## [0.38.3]
 
-- **Nothing in the code changed for `0.38.2`; this release carries its first real
-  change since it was published.** Two documentation corrections that landed after
-  the `0.38.2` archive was built are, as a result, not in the published package's own
-  `README.md`: the settings-page name and the wording of the loopback claim. The
-  install instructions in that archive were always correct — only its prose lagged —
-  and this release brings both into the package.
+No code shipped as this version. It was incremented while the 「工作区内」 work was in
+progress, and that work was released as `0.38.4` instead, so this entry records only why
+the number was taken: **npm retires version numbers two different ways, and this package
+has hit both.**
 
+- `0.38.0` was published and then unpublished. npm permanently retires a version that has
+  been unpublished, so it can never be published again.
+- `0.38.1` was accepted by `pnpm publish`, which stages a package and waits to be told to
+  promote it. The promotion never happened, and the registry now refuses to publish over a
+  staged version.
+- `0.38.2` was published with `npm publish`, which writes directly and does not stage. It
+  is the version `latest` pointed at until `0.38.4`.
 ## [0.38.2]
 
 No code changed. Only the version number, for a reason worth writing down: **npm

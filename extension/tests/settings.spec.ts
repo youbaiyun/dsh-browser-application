@@ -61,15 +61,16 @@ describe('normalizeSettings', () => {
       visionEndpoint: '',
       visionModel: '',
       visionApiKey: '',
-      unrestrictedBrowserAccess: false,
+      unrestrictedBrowserAccess: true,
       trustedActionOrigins: [],
       approvalNotifications: true,
       autoOpenPanel: true,
-      // Asking stays the default: following the active tab can move the target
-      // off a tab the model opened on purpose.
-      tabSwitch: 'ask',
-      // The panel gets its own conversation unless the user names another one.
-      sessionScope: 'fresh',
+      // Following the tab the user moved to is the shipped default; the strip can put it
+      // back to asking, which is the mode that never moves the target on its own.
+      tabSwitch: 'follow',
+      // Mirroring the desktop's browser workspace, so an instruction issued there shows
+      // up without being picked first.
+      sessionScope: 'workspace',
       pinnedSessionId: null,
       readWidth: 640,
     })
@@ -119,14 +120,23 @@ describe('normalizeSettings', () => {
     }
   })
 
-  it('coerces unrestrictedBrowserAccess to a strict boolean', () => {
+  it('keeps unrestrictedBrowserAccess a strict boolean, falling back to the default', () => {
+    // An explicit choice survives in both directions — a user who turned it off keeps it
+    // off, which is what makes the switch meaningful.
     expect(normalize({ unrestrictedBrowserAccess: true }).unrestrictedBrowserAccess).toBe(true)
     expect(normalize({ unrestrictedBrowserAccess: false }).unrestrictedBrowserAccess).toBe(false)
 
-    // Only the literal `true` may widen access; loose values stay restricted.
-    for (const loosened of ['true', 'yes', '1', 1, 0, null, undefined, {}, []]) {
-      expect(normalize({ unrestrictedBrowserAccess: loosened }).unrestrictedBrowserAccess).toBe(false)
+    // Anything that is not a boolean falls back to the shipped default rather than to
+    // `false`. The previous form (`source.x === true`) pinned this field to `false` for
+    // every unreadable value, so the default could be changed in `SETTINGS_DEFAULTS` and
+    // this line would quietly undo it — which is exactly what happened.
+    for (const loose of ['true', 'yes', '1', 1, 0, null, undefined, {}, []]) {
+      expect(normalize({ unrestrictedBrowserAccess: loose }).unrestrictedBrowserAccess)
+        .toBe(SETTINGS_DEFAULTS.unrestrictedBrowserAccess)
     }
+    // Stated plainly as well, so the intent survives a change to the default: a record
+    // that says nothing about the field gets the default, not "off".
+    expect(normalize({}).unrestrictedBrowserAccess).toBe(SETTINGS_DEFAULTS.unrestrictedBrowserAccess)
   })
 
   it('de-duplicates and sorts trustedActionOrigins, dropping invalid entries', () => {
@@ -179,20 +189,24 @@ describe('normalizeSettings', () => {
     }
   })
 
-  it('accepts only the three tab-switch modes, defaulting to ask', () => {
+  it('accepts only the three tab-switch modes, defaulting to follow', () => {
     expect(normalize({ tabSwitch: 'follow' }).tabSwitch).toBe('follow')
     expect(normalize({ tabSwitch: 'keep' }).tabSwitch).toBe('keep')
     expect(normalize({ tabSwitch: 'ask' }).tabSwitch).toBe('ask')
+    // Compared against the default rather than a literal, so changing the shipped
+    // default does not need this list edited twice — and an invalid value can never
+    // silently become a valid mode.
     for (const invalid of ['always', 'FOLLOW', '', true, 1, null, undefined, {}]) {
-      expect(normalize({ tabSwitch: invalid }).tabSwitch).toBe('ask')
+      expect(normalize({ tabSwitch: invalid }).tabSwitch).toBe(SETTINGS_DEFAULTS.tabSwitch)
     }
   })
 
-  it('accepts only the two conversation scopes, defaulting to a fresh session', () => {
+  it('accepts only the three conversation scopes, defaulting to the workspace', () => {
     expect(normalize({ sessionScope: 'fresh' }).sessionScope).toBe('fresh')
     expect(normalize({ sessionScope: 'pinned' }).sessionScope).toBe('pinned')
+    expect(normalize({ sessionScope: 'workspace' }).sessionScope).toBe('workspace')
     for (const invalid of ['current', 'PINNED', '', true, 1, null, undefined, {}]) {
-      expect(normalize({ sessionScope: invalid }).sessionScope).toBe('fresh')
+      expect(normalize({ sessionScope: invalid }).sessionScope).toBe(SETTINGS_DEFAULTS.sessionScope)
     }
   })
 

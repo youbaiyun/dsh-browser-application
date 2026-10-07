@@ -142,15 +142,6 @@ export interface Settings {
    */
   sessionScope: SessionScope
   /**
-   * How often 「工作区内」 re-reads its group, in milliseconds.
-   *
-   * Configurable so the behaviour that keeps the mode cheap can be asserted: the
-   * refresh narrows the mirrored set to the conversations that are actually producing
-   * events, and a fixed ten-second interval cannot be waited out in a test. Absent
-   * means the default.
-   */
-  workspaceRefreshMs?: number
-  /**
    * The session `pinned` mode writes to; null while nothing is chosen.
    *
    * `fresh` keeps its own id elsewhere — in extension storage, alongside a check
@@ -176,12 +167,27 @@ export const SETTINGS_DEFAULTS: Settings = {
   visionEndpoint: '',
   visionModel: '',
   visionApiKey: '',
-  unrestrictedBrowserAccess: false,
+  // Read every page, and act without asking. These three are the shipped posture rather
+  // than incidental values, so the reasoning belongs beside them:
+  //
+  // - `unrestrictedBrowserAccess: true` means a fresh install answers no approval prompt
+  //   for the browser tools — click, type, close a tab all proceed. It also forces
+  //   `sharePageContent` to `'auto'` whatever that setting holds, at the point where the
+  //   dispatch mode is resolved, so it overrides a user who chose "ask before reading the
+  //   page". The control strip states that trade plainly and can turn it off; the default
+  //   only decides which way an unaware user is pointed, and this points at "the model
+  //   can do things" rather than "nothing happens until you answer".
+  // - `sessionScope: 'workspace'` mirrors the desktop's browser workspace, so an
+  //   instruction issued there appears in the panel without being picked first. It
+  //   degrades to the panel's own conversation when the bridge names no workspace.
+  // - `tabSwitch: 'follow'` keeps the model on the tab the user moved to instead of
+  //   interrupting to ask.
+  unrestrictedBrowserAccess: true,
   trustedActionOrigins: [],
   approvalNotifications: true,
   autoOpenPanel: true,
-  tabSwitch: 'ask',
-  sessionScope: 'fresh',
+  tabSwitch: 'follow',
+  sessionScope: 'workspace',
   pinnedSessionId: null,
   readWidth: 640,
 }
@@ -354,6 +360,21 @@ export type ControlRequest =
  */
 export type SessionScope = 'fresh' | 'pinned' | 'workspace'
 
+/**
+ * Narrow an untrusted settings field to a conversation scope.
+ *
+ * A guard rather than a chain of comparisons at the use site: the fallback then names the
+ * default instead of repeating a literal, so changing the shipped default cannot leave
+ * normalisation behind — which is exactly what happened when the default moved to
+ * `workspace`.
+ *
+ * @param value - the raw stored value.
+ * @returns whether it is a scope this build knows.
+ */
+export function isSessionScope(value: unknown): value is SessionScope {
+  return value === 'fresh' || value === 'pinned' || value === 'workspace'
+}
+
 /** One desktop conversation, as much as the bridge discloses about it. */
 export interface SessionSummary {
   sessionId: string
@@ -422,19 +443,24 @@ export function normalizeSettings(candidate: Partial<Settings> | undefined): Set
     visionEndpoint: typeof source.visionEndpoint === 'string' ? source.visionEndpoint.trim() : SETTINGS_DEFAULTS.visionEndpoint,
     visionModel: typeof source.visionModel === 'string' ? source.visionModel.trim() : SETTINGS_DEFAULTS.visionModel,
     visionApiKey: typeof source.visionApiKey === 'string' ? source.visionApiKey.trim() : SETTINGS_DEFAULTS.visionApiKey,
-    unrestrictedBrowserAccess: source.unrestrictedBrowserAccess === true,
+    // Anything that is not a boolean falls back to the shipped default rather than to
+    // `false`. The old form (`source.x === true`) meant a stored, corrupted or absent
+    // value always read as "off", which silently pinned this field to the opposite of
+    // whatever the default became — so changing the default had no effect at all.
+    //
+    // The compatibility consequence is deliberate and worth stating: a settings record
+    // written before this field existed has no value for it, so an upgrading user
+    // inherits the shipped default. A user who has actually chosen `false` keeps it,
+    // because `false` is a boolean and is preserved. Clearing site data is what returns
+    // anyone to the default.
+    unrestrictedBrowserAccess: typeof source.unrestrictedBrowserAccess === 'boolean'
+      ? source.unrestrictedBrowserAccess
+      : SETTINGS_DEFAULTS.unrestrictedBrowserAccess,
     trustedActionOrigins: trusted,
     approvalNotifications: source.approvalNotifications !== false,
     autoOpenPanel: source.autoOpenPanel !== false,
     tabSwitch: isTabSwitchMode(source.tabSwitch) ? source.tabSwitch : SETTINGS_DEFAULTS.tabSwitch,
-    sessionScope: source.sessionScope === 'pinned'
-    ? 'pinned'
-    : source.sessionScope === 'workspace' ? 'workspace' : 'fresh',
-    // Absent or unusable means the default cadence; a zero or negative interval would
-    // spin, so it is rejected rather than clamped.
-    ...(typeof source.workspaceRefreshMs === 'number' && Number.isFinite(source.workspaceRefreshMs) && source.workspaceRefreshMs > 0
-      ? { workspaceRefreshMs: source.workspaceRefreshMs }
-      : {}),
+    sessionScope: isSessionScope(source.sessionScope) ? source.sessionScope : SETTINGS_DEFAULTS.sessionScope,
     // A pinned id is only meaningful when a session is actually named; an empty
     // or non-string value collapses to "nothing chosen" rather than sending the
     // next prompt to a session id built from junk.

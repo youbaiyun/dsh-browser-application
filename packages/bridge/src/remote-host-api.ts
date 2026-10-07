@@ -62,6 +62,7 @@ class RemoteHostApi implements BrowserHostApi {
     if (call.method === 'session.models') return this.sessionModels(call)
     if (call.method === 'workspace.list') return this.workspaceList(call)
     if (call.method === 'session.follow') return this.sessionFollow(call)
+    if (call.method === 'session.unfollow') return this.sessionUnfollow(call)
 
     const target = invokeTarget(call)
     if ('error' in target) return { ok: false, error: target.error }
@@ -189,6 +190,44 @@ class RemoteHostApi implements BrowserHostApi {
     try {
       await this.activeEvents.ensureSessionFollow(sessionId, call.signal)
       return { ok: true, value: { following: true } }
+    } catch (error: unknown) {
+      return { ok: false, error: this.failure(error) }
+    }
+  }
+
+  /**
+   * Stop reading every Session except the ones named, releasing their streams.
+   *
+   * The counterpart to {@link sessionFollow}, and what keeps a whole-workspace mirror
+   * from holding a stream per conversation for the lifetime of the connection. The
+   * caller declares what it is still watching rather than what to close: the set it
+   * holds is the authority, so an extension that missed a state change still ends up
+   * with exactly the streams it wants, and naming a Session it does not follow is a
+   * no-op rather than an error.
+   *
+   * Read-only in the same sense as `session.follow` — it only stops reads.
+   *
+   * @param call - the Host call; `keep` lists the Session ids still wanted.
+   * @returns `{ following: n }`, the number of Sessions still being read.
+   */
+  private sessionUnfollow(call: HostRpcCall): HostRpcResult {
+    if (!isRecord(call.payload)) return badRequest('session.unfollow payload must be an object')
+    const raw = call.payload.keep
+    if (raw !== undefined && !Array.isArray(raw)) {
+      return badRequest('session.unfollow keep must be an array of session ids')
+    }
+    const keep = new Set<string>()
+    for (const entry of Array.isArray(raw) ? raw : []) {
+      // A malformed entry is skipped rather than failing the call: the request's whole
+      // purpose is to release resources, and refusing it would leave them held.
+      if (typeof entry === 'string' && entry !== '') keep.add(entry)
+    }
+    if (this.activeEvents === undefined) {
+      return { ok: false, error: this.failure(new Error('this deployment cannot stream Session events')) }
+    }
+    try {
+      this.activeEvents.retainSessionFollows(keep)
+      return { ok: true, value: { following: keep.size } }
     } catch (error: unknown) {
       return { ok: false, error: this.failure(error) }
     }

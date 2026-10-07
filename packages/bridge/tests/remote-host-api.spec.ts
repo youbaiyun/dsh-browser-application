@@ -172,6 +172,33 @@ describe('dsh 0.2 Remote Host adapter', () => {
     })
   })
 
+  it('validates an unfollow request, and refuses only what is genuinely malformed', async () => {
+    // The keep-list is the whole request, so a caller that lost track still converges on
+    // the right set. Malformed entries inside it are skipped rather than failing: this
+    // method exists to release resources, and refusing it would leave them held — the
+    // opposite of what it is for. Only a payload that is not an object at all, or a
+    // `keep` that is not a list, is a real mistake.
+    //
+    // Asserted through the rejection paths, which need no event generation to reach: the
+    // acceptance path is covered where the streams actually exist, in the follower test
+    // above, and the counting itself is one `Set` in the implementation.
+    const { api } = harness()
+    await expect(api.call(call('session.unfollow', 'nope'))).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'bad-request', message: expect.stringContaining('must be an object') },
+    })
+    await expect(api.call(call('session.unfollow', { keep: 'a' }))).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'bad-request', message: expect.stringContaining('must be an array') },
+    })
+    // A deployment that cannot stream has nothing to release, and says so rather than
+    // reporting success. Reachable here because the check precedes the event generation.
+    await expect(api.call(call('session.unfollow', { keep: [] }))).resolves.toMatchObject({
+      ok: false,
+      error: { message: expect.stringContaining('cannot stream') },
+    })
+  })
+
   it('maps unary extension calls to exact Typert namespaces and named args', async () => {
     const { api, invoke } = harness({
       invoke: async ({ namespace, method }) => {

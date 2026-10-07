@@ -1187,6 +1187,13 @@ const sessionRpc = {
   cancel: (sessionId: string): Promise<unknown> => gatewayRpc('session.cancel', { sessionId }),
   history: (sessionId: string): Promise<unknown> => gatewayRpc('session.history', { sessionId }),
   follow: (sessionId: string): Promise<unknown> => gatewayRpc('session.follow', { sessionId }),
+  /**
+   * Declare which conversations are still being watched, releasing the rest.
+   *
+   * The keep-list is the whole request: the worker's mirror is the authority, so a
+   * bridge that missed an earlier change still converges on the same set.
+   */
+  retainFollows: (keep: readonly string[]): Promise<unknown> => gatewayRpc('session.unfollow', { keep }),
 }
 
 /**
@@ -1627,10 +1634,9 @@ export function sessionsWorthFollowing(
  */
 function newestMirrored(mirror: ReadonlyMap<string, string>): string | null {
   // The map preserves insertion order and `workspace.list` reports most recent first,
-  // so the first entry is the newest. No timestamps are needed, which keeps this
-  // working for a group whose order the desktop decides.
-  for (const id of mirror.keys()) return id
-  return null
+  // so the first key is the newest. No timestamps are needed, which keeps this working
+  // for a group whose order the desktop decides.
+  return [...mirror.keys()][0] ?? null
 }
 
 /**
@@ -1645,21 +1651,73 @@ function newestMirrored(mirror: ReadonlyMap<string, string>): string | null {
  *   conversations; false on entry, to mirror the whole group once.
  * @returns the mirrored set, so the caller can publish it to the panel.
  */
+/**
+ * Conversations this worker has already asked the bridge to stream.
+ *
+ * Kept so a refresh tick asks only about what is new. The bridge's `session.follow` is
+ * idempotent for a Session it is already reading, so repeating the request is not wrong
+ * — but a tick that re-announces every mirrored conversation spends a round trip per
+ * conversation per tick to change nothing.
+ */
+const followedSessions = new Set<string>()
+
 async function startWorkspaceMirror(options: { onlyActive: boolean } = { onlyActive: true }): Promise<Map<string, string>> {
   const mirror = await workspaceSessions(options)
   control.setMirrored(mirror)
-  for (const id of mirror.keys()) void startFollowingSession(id)
-  const newest = newestMirrored(mirror)
-  // Rows for a conversation that left the group are dropped; the rest keep theirs.
+  for (const id of mirror.keys()) {
+    if (followedSessions.has(id)) continue
+    followedSessions.add(id)
+    void startFollowingSession(id)
+  }
+  // Release the streams for conversations the mirror has let go, so a group of twenty
+  // does not hold twenty server-side streams to watch the one or two that are live. The
+  // remaining set is declared rather than the dropped one, so the bridge ends up with
+  // exactly what this worker is showing even if it missed an earlier change.
+  retainFollowedSessions(new Set(mirror.keys()))
+  // Their rows belong to a mirror that is no longer showing them.
   control.retainSessions(new Set(mirror.keys()))
+  const newest = newestMirrored(mirror)
   if (newest !== null) control.adopt(newest)
   return mirror
 }
 
-/** Stop mirroring, dropping the extra conversations' rows. */
+/**
+ * Tell the bridge which conversations are still being watched.
+ *
+ * Posted without awaiting, and best-effort on purpose. Two reasons, both about the user
+ * rather than about tidiness:
+ *
+ * - A bridge older than `session.unfollow` answers with an error, and that must not
+ *   surface anywhere. An extension and a bridge upgrade separately — one from the
+ *   store, one from npm — so the older pairing has to keep working, just without the
+ *   release. Degrading to "streams are held a little longer" is correct; failing a
+ *   refresh tick over it is not.
+ * - It is bookkeeping. A tick that cannot post it has still updated the panel.
+ *
+ * @param keep - the Session ids still being mirrored.
+ */
+function retainFollowedSessions(keep: ReadonlySet<string>): void {
+  let dropped = false
+  for (const id of [...followedSessions]) {
+    if (keep.has(id)) continue
+    followedSessions.delete(id)
+    dropped = true
+  }
+  // Nothing was released, so there is nothing to declare. This is the common case on a
+  // refresh tick and it costs no round trip.
+  if (!dropped) return
+  void sessionRpc.retainFollows([...keep]).catch(() => {
+    // An older bridge, or a socket that closed mid-flight. Either way the streams it
+    // still holds end with the connection.
+  })
+}
+
+/** Stop mirroring, dropping the extra conversations' rows and their follow bookkeeping. */
 function stopWorkspaceMirror(): void {
   control.setMirrored(new Map())
   control.retainSessions(new Set())
+  retainFollowedSessions(new Set())
+  followedSessions.clear()
 }
 
 /**
@@ -1733,7 +1791,7 @@ async function selectSessionScope(scope: SessionScope, sessionId: string | null)
     // conversation so typing here cannot land in one of the mirrored ones by
     // accident. The rows of the conversations being mirrored are additive, so only
     // the ones that leave the group are dropped.
-    sessionRefresh = new Map()
+    publishedMirror = new Map()
     control.detach(keep)
     await persistSettings({ sessionScope: 'workspace', pinnedSessionId: null })
     // The whole group on entry, so a conversation the desktop drove earlier is visible
@@ -1765,20 +1823,22 @@ async function selectSessionScope(scope: SessionScope, sessionId: string | null)
   broadcastState()
 }
 
-/** How often 「工作区内」 re-reads the group, so a new conversation appears on its own. */
-const WORKSPACE_REFRESH_MS = 10_000
+/**
+ * How often 「工作区内」 re-reads its group, so a conversation that starts working is
+ * picked up on its own.
+ *
+ * Ten seconds is a compromise the mode can live with: a tick is two metadata reads and
+ * opens a follower only for the conversations that turned out to be live, so the cost of
+ * being early is near zero, while the cost of being late is a delay before desktop-side
+ * work appears. Assigned rather than declared `const` because a test that wants to
+ * exercise the timer has to reach it, and exposing it as a user setting would be a knob
+ * whose only useful value is the default.
+ */
+export let WORKSPACE_REFRESH_MS = 10_000
 
-/** The configured refresh interval, for the tests that need it faster than ten seconds. */
-function workspaceRefreshMs(): number {
-  const configured = settings.workspaceRefreshMs
-  return typeof configured === 'number' && Number.isFinite(configured) && configured > 0
-    ? configured
-    : WORKSPACE_REFRESH_MS
-}
-
-/** The refresh timer for 「工作区内」, and the set it last published. */
+/** The refresh timer for 「工作区内」, and the group it last published. */
 let workspaceTimer: ReturnType<typeof setInterval> | null = null
-let sessionRefresh = new Map<string, string>()
+let publishedMirror = new Map<string, string>()
 
 /** Keep the mirrored set current while the mode is on. */
 function startWorkspaceRefresh(): void {
@@ -1789,13 +1849,13 @@ function startWorkspaceRefresh(): void {
         // Only repaint when the group actually changed: the panel re-renders on every
         // state push, and a timer that pushed unconditionally would repaint the
         // conversation every ten seconds for no reason.
-        if (sameMirror(mirror, sessionRefresh)) return
-        sessionRefresh = new Map(mirror)
+        if (sameMirror(mirror, publishedMirror)) return
+        publishedMirror = new Map(mirror)
         broadcastState()
       },
       () => { /* A read that failed: the next tick tries again. */ },
     )
-  }, workspaceRefreshMs())
+  }, WORKSPACE_REFRESH_MS)
   // Node and the worker both keep a process alive for a pending interval; this one is
   // bookkeeping and must never be the reason the worker stays up.
   const timer = workspaceTimer as unknown as { unref?: () => void }
@@ -1806,7 +1866,7 @@ function startWorkspaceRefresh(): void {
 function stopWorkspaceRefresh(): void {
   if (workspaceTimer !== null) clearInterval(workspaceTimer)
   workspaceTimer = null
-  sessionRefresh = new Map()
+  publishedMirror = new Map()
 }
 
 /**

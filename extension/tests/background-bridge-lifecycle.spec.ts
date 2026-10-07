@@ -513,7 +513,7 @@ describe('panel protocol', () => {
   })
 
   it('offers a pending approval to the panel and applies its decision to the tool call', async () => {
-    const chromeMock = mockChrome({ localGet: async () => ({ dshSettings: { bridgeUrl: BRIDGE_URL } }) })
+    const chromeMock = mockChrome({ localGet: async () => ({ dshSettings: { bridgeUrl: BRIDGE_URL, unrestrictedBrowserAccess: false } }) })
     vi.stubGlobal('WebSocket', FakeWebSocket)
 
     loadedWorker = await import('../src/background/index.ts')
@@ -697,7 +697,7 @@ describe('panel protocol', () => {
   it('promotes "don\'t ask again" into the stored tab-switch setting', async () => {    // The per-switch prompt used to forget its own answer on every worker
     // restart, so the user was asked the same question forever. Answering with
     // "keep, don't ask again" must therefore be written to settings.
-    const chromeMock = mockChrome({ localGet: async () => ({ dshSettings: { bridgeUrl: BRIDGE_URL } }) })
+    const chromeMock = mockChrome({ localGet: async () => ({ dshSettings: { bridgeUrl: BRIDGE_URL, tabSwitch: 'ask' } }) })
     vi.stubGlobal('WebSocket', FakeWebSocket)
 
     loadedWorker = await import('../src/background/index.ts')
@@ -734,7 +734,7 @@ describe('panel protocol', () => {
   })
 
   it('raises a system notification when an approval arrives with no panel open', async () => {
-    const chromeMock = mockChrome({ localGet: async () => ({ dshSettings: { bridgeUrl: BRIDGE_URL } }) })
+    const chromeMock = mockChrome({ localGet: async () => ({ dshSettings: { bridgeUrl: BRIDGE_URL, unrestrictedBrowserAccess: false } }) })
     vi.stubGlobal('WebSocket', FakeWebSocket)
 
     loadedWorker = await import('../src/background/index.ts')
@@ -761,7 +761,7 @@ describe('panel protocol', () => {
   })
 
   it('applies an affinity keep/follow choice and rejects a stale revision', async () => {
-    const chromeMock = mockChrome({ localGet: async () => ({ dshSettings: { bridgeUrl: BRIDGE_URL } }) })
+    const chromeMock = mockChrome({ localGet: async () => ({ dshSettings: { bridgeUrl: BRIDGE_URL, tabSwitch: 'ask' } }) })
     vi.stubGlobal('WebSocket', FakeWebSocket)
 
     loadedWorker = await import('../src/background/index.ts')
