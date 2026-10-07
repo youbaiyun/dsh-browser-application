@@ -27,6 +27,15 @@ are listed only where this fork has something to say about them; see
     are missing, which keeps a bridge without the method usable.
   - The panel's conversation picker sets it, so choosing 「当前对话」 and picking a
     conversation is what starts the mirroring.
+  - **A failed follow is now visible.** It was the one failure with no surface: the
+    panel stayed correctly bound, received nothing, and looked exactly like a
+    conversation with nothing in it. The commonest cause is a desktop app still
+    running an older bridge — one that answers `session.follow` with `not-found` —
+    and the only fix is to restart it, which no one can guess from an empty panel.
+    The worker now turns that specific failure into a panel notice naming the fix,
+    and clears it once a follow succeeds.
+  - The follow call is skipped when the socket is already gone instead of racing the
+    teardown, which used to log an unhandled rejection on the way down.
 
 ### Fixed
 

@@ -100,6 +100,8 @@ function state(overrides: Partial<ControlState> = {}): ControlState {
     // default. Tests that care pass their own policy.
     policy: { openPagesForUser: true },
     replaced: false,
+    // No failed follow unless a test asks for one.
+    followError: null,
     ...overrides,
   }
 }
@@ -704,6 +706,19 @@ describe('rendered panel', () => {
     expect([...tabSwitch.options].map((option) => option.textContent)).toContain('跟随')
     const conversation = selects.find((select) => select.getAttribute('aria-label') === '对话发到')!
     expect([...conversation.options].map((option) => option.textContent)).toContain('当前对话')
+  })
+
+  it('says why the panel is not following a conversation, instead of just looking empty', () => {
+    // The commonest cause is a desktop app still running an older bridge that does
+    // not know `session.follow`. Bound-but-not-updating and nothing-to-show look
+    // identical without this notice.
+    const { root } = mount(state({ followError: '桌面端还没加载新版桥接，面板无法跟随对话。重启 dsh 桌面端后重试。' }))
+    expect(root.querySelector('.notice')?.textContent).toContain('重启 dsh 桌面端')
+  })
+
+  it('shows no such notice when following is fine', () => {
+    const { root } = mount()
+    expect(root.textContent).not.toContain('无法跟随')
   })
 
   it('says another browser took the connection and offers to take it back', () => {

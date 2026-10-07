@@ -368,6 +368,7 @@ function controlState(): ControlState {
     // replacement and an ordinary stop end in the same state, but only one of
     // them has a way back that the user can act on.
     replaced: bridge?.wasReplaced === true,
+  followError: followErrorRef,
   }
 }
 
@@ -1162,12 +1163,40 @@ const sessionRpc = {
  * Best-effort on purpose. A transport that predates `session.follow` answers with
  * an error; the panel is still correctly bound in that case, it simply will not
  * update live, and that is not worth failing the user's conversation switch over.
+ *
+ * The failure is remembered in `followErrorRef` and shown in the panel, because
+ * "bound but not updating" and "nothing to show" look identical otherwise, and the
+ * usual cause has a one-step fix the user cannot guess: restart the desktop app so
+ * it loads a bridge that knows this method.
  */
+let followErrorRef: string | null = null
+
 async function startFollowingSession(sessionId: string): Promise<void> {
   try {
+    // Checked rather than assumed: `gatewayRpc` throws when the bridge is gone, and a
+    // fire-and-forget call that rejects after the worker is torn down surfaces as an
+    // unhandled rejection — a noisy console and a test failure for something that is,
+    // by design, allowed to fail.
+    if (rpc === null || bridge === null || !bridge.connected) return
     await sessionRpc.follow(sessionId)
+    if (followErrorRef !== null) {
+      followErrorRef = null
+      broadcastState()
+    }
   } catch (error: unknown) {
-    console.warn('bridge: session.follow failed', error)
+    // Swallowed on purpose: following is best-effort, and the branch below turns the
+    // one failure the user can act on into a sentence the panel shows.
+    const detail = error instanceof Error ? error.message : String(error)
+    followErrorRef = /unavailable|not-found/iu.test(detail)
+      ? (getUiLocale() === 'zh'
+          ? '桌面端还没加载新版桥接，面板无法跟随对话。重启 dsh 桌面端后重试。'
+          : 'The desktop app has not loaded the new bridge, so the panel cannot follow a conversation. Restart dsh and try again.')
+      : detail
+    try {
+      broadcastState()
+    } catch {
+      // The worker is shutting down; there is no panel left to tell.
+    }
   }
 }
 

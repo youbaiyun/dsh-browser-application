@@ -478,6 +478,9 @@ function parseControlState(value: unknown): ControlState | null {
       ? { openPagesForUser: value.policy.openPagesForUser }
       : null,
     replaced: value.replaced === true,
+    // A string or nothing; anything else is treated as no error, so a malformed
+    // push cannot put a non-sentence in front of the user.
+    followError: typeof value.followError === 'string' && value.followError !== '' ? value.followError : null,
   }
 }
 
@@ -845,6 +848,13 @@ export class App {
         label: this.copy.bridge.reclaim,
         onClick: () => { this.port.post({ type: 'bridge.reclaim' }) },
       }))
+    }
+    // A follow that failed is why the transcript above can be empty while the
+    // desktop app shows a conversation; without saying so, "not following" and
+    // "nothing to show" look the same.
+    const followError = this.state?.followError
+    if (followError !== null && followError !== undefined) {
+      inner.append(this.noticeNode(followError, null, 'info', false))
     }
     if (this.notice !== null) inner.append(this.noticeNode(this.notice, null, 'info', false))
     const affinity = this.state?.affinity

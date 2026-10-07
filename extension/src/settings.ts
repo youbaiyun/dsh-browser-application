@@ -264,6 +264,15 @@ export interface ControlState {
    * took the connection.
    */
   replaced: boolean
+  /**
+   * Why the panel is not following a conversation, when it tried to and failed.
+   *
+   * Surfaced rather than logged because the commonest cause is a desktop app still
+   * running an older bridge — one that does not know `session.follow` — and the only
+   * fix is to restart it. Without this the panel simply looks empty and says nothing,
+   * which is indistinguishable from having nothing to show.
+   */
+  followError: string | null
 }
 
 /** Control strip → background. */
