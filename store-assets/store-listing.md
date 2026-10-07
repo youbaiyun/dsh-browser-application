@@ -12,7 +12,7 @@ dsh Browser Extension
 Chinese listing (if submitted as a separate item, or as the primary locale):
 
 ```
-dsh 浏览器扩展（应用端）
+dsh 浏览器扩展（全端）
 ```
 
 The name is deliberately unlike upstream's `dsh Browser Control`. Two extensions  
@@ -28,10 +28,10 @@ agree.
 ## Short description (132 characters max)
 
 ```
-Browser executor for the dsh desktop app: reads and operates your page, signed in, no screenshots. Image look-up is optional.
+Browser executor for the dsh desktop app: reads and operates your page, signed in, no screenshots. Image look-up optional.
 ```
 
-Count: 125 characters. Asserted equal to `_locales/en` by `extension/tests/locales.spec.ts`.
+Count: 122 characters. Asserted equal to `_locales/en` by `extension/tests/locales.spec.ts`.
 
 ## Detailed description
 
@@ -40,7 +40,7 @@ where the companion skill lives, then the short version of what it does. Someone
 who reads only the first three lines should still know whether they want it.
 
 ```
-应用端 DeepSeek Harness 浏览器插件
+全端 DeepSeek Harness 浏览器插件
 
 配套技能包（Skill）：
 https://github.com/youbaiyun/dsh-browser-crossplatform/tree/main/skills/dsh-browser-crossplatform-troubleshooting
@@ -73,7 +73,7 @@ https://github.com/youbaiyun/dsh-browser-crossplatform/tree/main/skills/dsh-brow
 English listing:
 
 ```
-dsh Browser Extension — the browser side of the dsh desktop app
+dsh Browser Extension — all-sides support for the dsh desktop app
 
 Companion skill:
 https://github.com/youbaiyun/dsh-browser-crossplatform/tree/main/skills/dsh-browser-crossplatform-troubleshooting

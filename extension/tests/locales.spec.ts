@@ -128,8 +128,8 @@ describe('locale files', () => {
     // asserted the Traditional form against `zh_CN`, which failed for the right
     // reason — the fixture was wrong, not the locale file.
     const EXPECTED_SUFFIX: Record<string, string> = {
-      zh_CN: '应用端',
-      zh_TW: '應用端',
+      zh_CN: '全端',
+      zh_TW: '全端',
     }
     for (const locale of await allLocales()) {
       const messages = await readLocale(locale)

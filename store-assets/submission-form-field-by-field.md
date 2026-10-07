@@ -25,7 +25,7 @@ process). If a value here disagrees with those, they win and this file is stale.
 ### Name (75 characters max)
 
 ```
-dsh 浏览器扩展（应用端）
+dsh 浏览器扩展（全端）
 ```
 
 The dashboard is in Chinese, so submit the Chinese name as the primary locale.
@@ -34,10 +34,10 @@ English (`dsh Browser Extension`) belongs in the English listing if you add one.
 ### Short description (132 characters max)
 
 ```
-Browser executor for the dsh desktop app: reads and operates your page, signed in, no screenshots. Image look-up is optional.
+Browser executor for the dsh desktop app: reads and operates your page, signed in, no screenshots. Image look-up optional.
 ```
 
-That is 125 characters, and it is asserted equal to `_locales/en` by
+That is 122 characters, and it is asserted equal to `_locales/en` by
 `extension/tests/locales.spec.ts` rather than counted by hand — so it must be copied
 from `store-listing.md` verbatim. A differently-worded string of a similar length
 fails that assertion (and the store compares the listing with the manifest's
@@ -53,7 +53,7 @@ That is 65 characters, and it is the `_locales/zh_CN` string word for word.
 ### Detailed description
 
 Use the Chinese block from `store-listing.md`, which begins
-`应用端 DeepSeek Harness 浏览器插件` and ends with the upstream credit line. It is
+`全端 DeepSeek Harness 浏览器插件` and ends with the upstream credit line. It is
 written so that the first three lines alone tell someone whether they want it.
 
 **One thing in it must stay**: the line saying the desktop app is required. Without

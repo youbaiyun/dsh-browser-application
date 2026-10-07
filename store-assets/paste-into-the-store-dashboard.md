@@ -21,7 +21,7 @@ Length: 65 characters. The limit is 132.
 ## Detailed description — paste this (Chinese)
 
 ```
-应用端 DeepSeek Harness 浏览器插件
+全端 DeepSeek Harness 浏览器插件
 
 配套技能包（Skill）：
 https://github.com/youbaiyun/dsh-browser-crossplatform/tree/main/skills/dsh-browser-crossplatform-troubleshooting
@@ -56,10 +56,10 @@ https://github.com/youbaiyun/dsh-browser-crossplatform/tree/main/skills/dsh-brow
 Short description:
 
 ```
-Browser executor for the dsh desktop app: reads and operates your page, signed in, no screenshots. Image look-up is optional.
+Browser executor for the dsh desktop app: reads and operates your page, signed in, no screenshots. Image look-up optional.
 ```
 
-Length: 125 characters, identical to `_locales/en` — copy it from `store-listing.md`
+Length: 122 characters, identical to `_locales/en` — copy it from `store-listing.md`
 rather than retyping it, because a hand-written variant of the same length fails the
 assertion in `extension/tests/locales.spec.ts`.
 
@@ -72,7 +72,7 @@ dsh Browser Extension
 Chinese name:
 
 ```
-dsh 浏览器扩展（应用端）
+dsh 浏览器扩展（全端）
 ```
 
 The full English detailed description is the last code block of `store-listing.md`.

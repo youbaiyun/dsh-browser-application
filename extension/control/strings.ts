@@ -153,7 +153,7 @@ export interface ControlCopy {
 }
 
 const ZH: ControlCopy = {
-  documentTitle: 'dsh 浏览器扩展（应用端）',
+  documentTitle: 'dsh 浏览器扩展（全端）',
   bridge: {
     connecting: '正在连接',
     connected: '已连接',
