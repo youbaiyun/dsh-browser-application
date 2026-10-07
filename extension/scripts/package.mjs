@@ -17,7 +17,11 @@
  *   node extension/scripts/package.mjs
  *
  * Writes `dsh-browser-crossplatform-<version>.zip` (Chrome) and
- * `dsh-browser-crossplatform-<version>-firefox.zip` (Firefox) into the repo root.
+ * `dsh-browser-crossplatform-<version>-firefox.zip` (Firefox) into the repo root,
+ * plus `…-<version>-store.zip` / `…-store-firefox.zip` when the `--store` builds
+ * exist. **Upload the `-store` archive to a store**; the other pair carries the
+ * manifest `key` that keeps a development extension id stable, and the Chrome Web
+ * Store rejects it.
  */
 
 import { deflateRawSync } from 'node:zlib'
@@ -161,6 +165,16 @@ const archives = [
   writeArchive('dist', `dsh-browser-crossplatform-${version}.zip`),
   writeArchive('dist-firefox', `dsh-browser-crossplatform-${version}-firefox.zip`),
 ]
+// The store archives come from `--store` builds, whose manifest has no `key`.
+// The Chrome Web Store refuses an upload that carries one ("清单文件中不得包含 key
+// 字段"), while a development build needs it to keep a predictable extension id.
+// Packing them here rather than by hand keeps the two from being confused: the
+// file name says which is which.
+for (const [dir, suffix] of [['dist-store', '-store'], ['dist-firefox-store', '-store-firefox']]) {
+  if (existsSync(resolve(extensionDir, dir))) {
+    archives.push(writeArchive(dir, `dsh-browser-crossplatform-${version}${suffix}.zip`))
+  }
+}
 for (const { target, bytes, files } of archives) {
   console.log(`wrote ${target} (${files} files, ${bytes} bytes)`)
 }

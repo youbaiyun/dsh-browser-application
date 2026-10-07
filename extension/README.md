@@ -83,9 +83,16 @@ From the repository root:
 pnpm install
 pnpm --filter dsh-browser-extension run build            # Chrome/Edge -> dist/
 pnpm --filter dsh-browser-extension run build:firefox    # Firefox     -> dist-firefox/
+pnpm --filter dsh-browser-extension run build:store      # Chrome, no manifest `key` -> dist-store/
 pnpm --filter dsh-browser-extension run test
 pnpm --filter dsh-browser-extension run typecheck
 ```
+
+The `--store` builds exist because a store rejects the manifest `key` this
+repository keeps (the Chrome Web Store, verbatim: 清单文件中不得包含"key"字段). The
+`key` pins the extension id, which is what keeps a development install connecting
+without a token, so it stays in the ordinary build and is dropped only for the
+archive a store receives. See [../docs/STORE.md](../docs/STORE.md).
 
 ## Install and use
 

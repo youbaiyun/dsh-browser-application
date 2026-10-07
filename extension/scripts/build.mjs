@@ -19,6 +19,14 @@ if (process.argv.includes('--firefox')) {
   process.env.EXT_TARGET = 'firefox'
 }
 
+// --store builds into dist-store/ (or dist-firefox-store/) with the manifest's
+// `key` removed, which is what a store requires: the repository manifests carry
+// one to pin the extension id, and the Chrome Web Store refuses an upload that
+// has it. The id a store assigns instead is what the bridge must be told.
+if (process.argv.includes('--store')) {
+  process.env.EXT_STORE = '1'
+}
+
 const configs = [
   'vite.background.config.ts',
   'vite.content.config.ts',

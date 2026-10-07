@@ -139,13 +139,18 @@ pnpm -r run typecheck   # typecheck the whole repo (protocol + bridge + extensio
 pnpm -r run test        # all unit tests (the bridge's e2e needs a Chromium; see below)
 pnpm --filter dsh-browser-extension run build           # Chrome → extension/dist
 pnpm --filter dsh-browser-extension run build:firefox   # Firefox → extension/dist-firefox
-pnpm --filter dsh-browser-extension run package         # both store archives → repo root
+pnpm --filter dsh-browser-extension run build:store     # Chrome, no manifest `key` → extension/dist-store
+pnpm --filter dsh-browser-extension run package         # all archives → repo root
 pnpm --filter dsh-browser-crossplatform run build  # bridge plugin → packages/bridge/lib
 ```
 
 `package` writes `dsh-browser-crossplatform-<version>.zip` and `…-<version>-firefox.zip`,
 naming each archive after the manifest inside it and refusing `\` entry names (which the
-stores reject). To run the bridge's e2e locally, give it a browser that still honors
+stores reject). **Upload the `-store` archive to a store, not the other one**: the plain
+builds carry a manifest `key` that pins the extension id for development, and the Chrome
+Web Store refuses an upload that contains it. See [docs/STORE.md](docs/STORE.md) for the
+full submission path, including what the store-assigned id means for the bridge. To run
+the bridge's e2e locally, give it a browser that still honors
 `--load-extension`: `node benchmark/lib/browser-install.mjs chromium`, then set
 `PLAYWRIGHT_CHROMIUM_PATH` to what `node benchmark/lib/chromium-path.mjs` prints.
 

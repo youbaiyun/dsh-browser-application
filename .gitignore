@@ -1,6 +1,10 @@
 node_modules/
 dist/
 dist-firefox/
+# --store builds: the same targets with the manifest key removed, which is what a
+# store accepts (the Chrome Web Store refuses an upload carrying one).
+dist-store/
+dist-firefox-store/
 # Build output of the packages. The bridge plugin's compiled entry lives here and the
 # desktop loads it, but it is produced by `pnpm build`, so it is not a source.
 lib/

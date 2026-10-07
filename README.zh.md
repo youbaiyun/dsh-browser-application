@@ -138,11 +138,12 @@ pnpm -r run typecheck   # 全仓类型检查（协议 + 桥接 + 扩展）
 pnpm -r run test        # 全部单测（桥接的 e2e 需要一个 Chromium，见下）
 pnpm --filter dsh-browser-extension run build           # Chrome → extension/dist
 pnpm --filter dsh-browser-extension run build:firefox   # Firefox → extension/dist-firefox
-pnpm --filter dsh-browser-extension run package         # 两个商店包 → 仓库根目录
+pnpm --filter dsh-browser-extension run build:store     # Chrome，不含 manifest 的 key → extension/dist-store
+pnpm --filter dsh-browser-extension run package         # 全部归档 → 仓库根目录
 pnpm --filter dsh-browser-crossplatform run build  # 桥接插件 → packages/bridge/lib
 ```
 
-`package` 写出 `dsh-browser-crossplatform-<version>.zip` 与 `…-<version>-firefox.zip`：文件名取自包内 manifest 的版本，并拒绝 `\` 作为条目分隔符（商店会拒收这种包）。要在本机跑桥接的 e2e，先给它一个仍遵守 `--load-extension` 的浏览器：`node benchmark/lib/browser-install.mjs chromium`，再把 `PLAYWRIGHT_CHROMIUM_PATH` 设为 `node benchmark/lib/chromium-path.mjs` 打印的路径。
+`package` 写出 `dsh-browser-crossplatform-<version>.zip` 与 `…-<version>-firefox.zip`：文件名取自包内 manifest 的版本，并拒绝 `\` 作为条目分隔符（商店会拒收这种包）。**要上传商店的是 `-store` 那一个，不是普通的那个**：普通构建带着 manifest 的 `key`（用于开发时固定扩展 ID），而 Chrome 应用商店明确拒收含该字段的包。完整提交流程（含"商店分配的 ID 对桥接意味着什么"）见 [docs/STORE.md](docs/STORE.md)。要在本机跑桥接的 e2e，先给它一个仍遵守 `--load-extension` 的浏览器：`node benchmark/lib/browser-install.mjs chromium`，再把 `PLAYWRIGHT_CHROMIUM_PATH` 设为 `node benchmark/lib/chromium-path.mjs` 打印的路径。
 
 ## 端到端评测（benchmark/）
 

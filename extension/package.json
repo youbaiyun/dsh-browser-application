@@ -1,37 +1,39 @@
 {
-  "name": "dsh-browser-extension",
-  "description": "Chrome and Firefox MV3 extension: the dsh desktop app's browser executor, with a side-panel conversation and text-only read/operate of a user-controlled tab through the dsh browser bridge",
-  "version": "0.38.2",
-  "author": "youbaiyun",
-  "contributors": [
-    "Page-reading pipeline, action executors and security model from Lum1104/dsh-browser (MIT); the side panel is this build's own. See COPYRIGHT.md"
-  ],
-  "license": "MIT",
-  "private": true,
-  "type": "module",
-  "engines": {
-    "node": ">=20"
-  },
-  "scripts": {
-    "build": "node scripts/build.mjs",
-    "build:firefox": "node scripts/build.mjs --firefox",
-    "package": "node scripts/package.mjs",
-    "dev": "node scripts/build.mjs --watch",
-    "dev:firefox": "node scripts/build.mjs --firefox --watch",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "dompurify": "^3.4.16",
-    "marked": "^18.0.14"
-  },
-  "devDependencies": {
-    "@dsh-browser/protocol": "workspace:^",
-    "@types/chrome": "^0.0.268",
-    "jsdom": "^26.1.0",
-    "typescript": "^5.6.2",
-    "vite": "^6.0.0",
-    "vite-tsconfig-paths": "^6.1.1",
-    "vitest": "^4.1.11"
-  }
+    "name":  "dsh-browser-extension",
+    "description":  "Chrome and Firefox MV3 extension: the dsh desktop app\u0027s browser executor, with a side-panel conversation and text-only read/operate of a user-controlled tab through the dsh browser bridge",
+    "version":  "0.38.2",
+    "author":  "youbaiyun",
+    "contributors":  [
+                         "Page-reading pipeline, action executors and security model from Lum1104/dsh-browser (MIT); the side panel is this build\u0027s own. See COPYRIGHT.md"
+                     ],
+    "license":  "MIT",
+    "private":  true,
+    "type":  "module",
+    "engines":  {
+                    "node":  "\u003e=20"
+                },
+    "scripts":  {
+                    "build":  "node scripts/build.mjs",
+                    "build:firefox":  "node scripts/build.mjs --firefox",
+                    "package":  "node scripts/package.mjs",
+                    "dev":  "node scripts/build.mjs --watch",
+                    "dev:firefox":  "node scripts/build.mjs --firefox --watch",
+                    "typecheck":  "tsc -p tsconfig.json --noEmit",
+                    "test":  "vitest run",
+                    "build:store":  "node scripts/build.mjs --store",
+                    "build:store:firefox":  "node scripts/build.mjs --firefox --store"
+                },
+    "dependencies":  {
+                         "dompurify":  "^3.4.16",
+                         "marked":  "^18.0.14"
+                     },
+    "devDependencies":  {
+                            "@dsh-browser/protocol":  "workspace:^",
+                            "@types/chrome":  "^0.0.268",
+                            "jsdom":  "^26.1.0",
+                            "typescript":  "^5.6.2",
+                            "vite":  "^6.0.0",
+                            "vite-tsconfig-paths":  "^6.1.1",
+                            "vitest":  "^4.1.11"
+                        }
 }
