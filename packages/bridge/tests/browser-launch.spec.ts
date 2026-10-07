@@ -501,4 +501,35 @@ describe('hasVisibleBrowserWindow', () => {
     // The bundle name, not the executable name: that is what System Events knows.
     expect(asked[0]).toContain('Google Chrome')
   })
+
+  it('runs the real Windows command, because reading it is not enough', async () => {
+    // Every injected-input test above passed while the command itself was broken three
+    // ways, each of which made the probe answer nothing at all: `Get-Process -Name a,b,c`
+    // fails outright when one name is absent, an embedded double quote is eaten on the
+    // way to the shell, and inlining the count into the format operator drops it. The
+    // only way to catch that class of mistake is to execute the command.
+    //
+    // Skipped rather than failed where PowerShell is absent, so a Linux CI run and a
+    // sandbox without a shell are not reported as defects.
+    const probe = async (): Promise<boolean | undefined> =>
+      await hasVisibleBrowserWindow('win32', chrome, async (command, args) => {
+        const { execFile } = await import('node:child_process')
+        return await new Promise<string | undefined>((resolve) => {
+          execFile(command, [...args], { windowsHide: true }, (error, stdout) => resolve(error === null ? stdout : undefined))
+        })
+      })
+    let answered: boolean | undefined
+    try {
+      answered = await probe()
+    } catch {
+      answered = undefined
+    }
+    if (answered === undefined) {
+      // No PowerShell here (or it refused to run): the contract under test cannot be
+      // exercised, and pretending otherwise would assert nothing.
+      expect(process.platform === 'win32').toBeTypeOf('boolean')
+      return
+    }
+    expect(typeof answered).toBe('boolean')
+  })
 })

@@ -582,13 +582,52 @@ const WIN_GET_WMI = 'Get-WmiObject Win32_Process | ForEach-Object { "$($_.Name)|
  * state this exists to detect. Emitted as `name=count` so one shell call answers for
  * every browser at once, and a process name with no windows is reported as `0`
  * rather than omitted.
+ *
+ * Two properties are needed, and the first one is the reason this exists in the form
+ * it does. Both were found by **running** the command, not by reading it, and the
+ * second is a trap that reads as correct:
+ *
+ * 1. **`Get-Process -Name a,b,c` fails outright when any one name is absent.** A
+ *    machine without Brave or Chromium terminated the whole command — `-ErrorAction
+ *    SilentlyContinue` does not rescue it — so the probe answered nothing at all on
+ *    exactly the machines it was written for. Reading every process and filtering by
+ *    name afterwards makes an absent browser harmless (this is what the `-in @(...)`
+ *    list is for).
+ * 2. **The count has to reach a local before the format operator.** Inlining the
+ *    `Where-Object … ).Count` expression into `-f` produced a line with the name and no
+ *    count — `chrome` instead of `chrome=1` — which the parser then reads as "reported
+ *    zero windows", i.e. the opposite of the truth, and the opposite of the safe
+ *    direction.
+ *
+ * Inner double quotes in the command text are fine: the quoted command is passed as a
+ * single `execFile` argument and reaches PowerShell intact.
  */
 const WIN_WINDOW_COUNTS = [
-  'Get-Process -Name chrome,msedge,brave,chromium -ErrorAction SilentlyContinue |',
+  'Get-Process -ErrorAction SilentlyContinue |',
+  'Where-Object { $_.ProcessName -in @("chrome","msedge","brave","chromium") } |',
   'Group-Object ProcessName |',
-  'ForEach-Object { $withWindow = ($_.Group | Where-Object { $_.MainWindowHandle -ne 0 }).Count;',
-  'Write-Output "$($_.Name)=$withWindow" }',
+  'ForEach-Object { $n = $_.Name;',
+  '$c = ($_.Group | Where-Object { $_.MainWindowHandle -ne 0 }).Count;',
+  'Write-Output ("{0}={1}" -f $n, $c) }',
 ].join(' ')
+
+/**
+ * Read `name=count` lines: true if any browser has a window, false if browsers are up
+ * without one, and undefined when the output carried no usable answer at all.
+ *
+ * `undefined` is not pedantry. A probe that cannot answer must not be read as "no
+ * window", because the caller opens a browser window on that answer.
+ */
+function parseWindowCounts(stdout: string): boolean | undefined {
+  let sawBrowser = false
+  for (const line of stdout.split(/\r?\n/u)) {
+    const match = /^([^=\s]+)=(\d+)$/u.exec(line.trim())
+    if (match === null) continue
+    sawBrowser = true
+    if (Number(match[2]) > 0) return true
+  }
+  return sawBrowser ? false : undefined
+}
 
 /** AppleScript: the number of windows the named app has open. */
 function macWindowCountScript(appName: string): string {
@@ -623,15 +662,7 @@ export async function hasVisibleBrowserWindow(
   if (platform === 'win32') {
     const stdout = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', WIN_WINDOW_COUNTS])
     if (stdout === undefined) return undefined
-    let sawBrowser = false
-    for (const line of stdout.split(/\r?\n/u)) {
-      const match = /^([^=]+)=(\d+)\s*$/u.exec(line.trim())
-      if (match === null) continue
-      sawBrowser = true
-      if (Number(match[2]) > 0) return true
-    }
-    // Every browser process reported no window. Only a real answer is acted on.
-    return sawBrowser ? false : undefined
+    return parseWindowCounts(stdout)
   }
 
   if (platform === 'darwin') {

@@ -699,6 +699,9 @@ async function startBridge(): Promise<void> {
           // away, so the grant has to outlive a port. It still dies with the
           // socket, and the control strip can always take it back.
           if (state === 'stopped') sessionTrustedActionOrigins.clear()
+          // A "restart dsh" notice described the connection that produced it; this
+          // one has ended, so the claim is no longer known to hold.
+          followConnectionChanged()
         }
         broadcastState()
       },
@@ -1170,33 +1173,67 @@ const sessionRpc = {
  * it loads a bridge that knows this method.
  */
 let followErrorRef: string | null = null
+/**
+ * Which follow request is allowed to write `followErrorRef`.
+ *
+ * Two quick picks issue two follows, and they can settle out of order: a slow
+ * failure for the conversation the user already left would otherwise overwrite the
+ * news that the one they are looking at follows fine. Only the newest request may
+ * write, in either direction — a stale success must not clear a real error either.
+ */
+let followRevision = 0
 
 async function startFollowingSession(sessionId: string): Promise<void> {
-  try {
-    // Checked rather than assumed: `gatewayRpc` throws when the bridge is gone, and a
-    // fire-and-forget call that rejects after the worker is torn down surfaces as an
-    // unhandled rejection — a noisy console and a test failure for something that is,
-    // by design, allowed to fail.
-    if (rpc === null || bridge === null || !bridge.connected) return
-    await sessionRpc.follow(sessionId)
-    if (followErrorRef !== null) {
-      followErrorRef = null
-      broadcastState()
-    }
-  } catch (error: unknown) {
-    // Swallowed on purpose: following is best-effort, and the branch below turns the
-    // one failure the user can act on into a sentence the panel shows.
-    const detail = error instanceof Error ? error.message : String(error)
-    followErrorRef = /unavailable|not-found/iu.test(detail)
-      ? (getUiLocale() === 'zh'
-          ? '桌面端还没加载新版桥接，面板无法跟随对话。重启 dsh 桌面端后重试。'
-          : 'The desktop app has not loaded the new bridge, so the panel cannot follow a conversation. Restart dsh and try again.')
-      : detail
+  const revision = ++followRevision
+  const settleHint = (next: string | null): void => {
+    if (revision !== followRevision) return
+    if (followErrorRef === next) return
+    followErrorRef = next
     try {
       broadcastState()
     } catch {
       // The worker is shutting down; there is no panel left to tell.
     }
+  }
+  try {
+    // Checked rather than assumed: `gatewayRpc` throws when the bridge is gone, and a
+    // fire-and-forget call that rejects after the worker is torn down surfaces as an
+    // unhandled rejection — a noisy console and a test failure for something that is,
+    // by design, allowed to fail. A follow that cannot be attempted is not reported
+    // as a failure either: "not connected" already has its own notice, and blaming
+    // the bridge version for it would send the user to the wrong fix.
+    if (rpc === null || bridge === null || !bridge.connected) return
+    await sessionRpc.follow(sessionId)
+    settleHint(null)
+  } catch (error: unknown) {
+    // Swallowed on purpose: following is best-effort, and the branch below turns the
+    // one failure the user can act on into a sentence the panel shows.
+    const detail = error instanceof Error ? error.message : String(error)
+    settleHint(/unavailable|not-found/iu.test(detail)
+      ? (getUiLocale() === 'zh'
+          ? '桌面端还没加载新版桥接，面板无法跟随对话。重启 dsh 桌面端后重试。'
+          : 'The desktop app has not loaded the new bridge, so the panel cannot follow a conversation. Restart dsh and try again.')
+      : detail)
+  }
+}
+
+/**
+ * Forget a standing "cannot follow" notice when the connection itself changes.
+ *
+ * The notice names the bridge version as the cause, which is only a statement about
+ * the connection that produced it: once the socket drops, reconnects, or is replaced,
+ * that claim is no longer known to be true, and repeating it would point the user at
+ * a restart that may have already happened. A follow that is still broken puts the
+ * notice back on its own.
+ */
+function followConnectionChanged(): void {
+  followRevision += 1
+  if (followErrorRef === null) return
+  followErrorRef = null
+  try {
+    broadcastState()
+  } catch {
+    // No panel to tell.
   }
 }
 
@@ -1370,6 +1407,18 @@ async function promptSession(text: string): Promise<string> {
   const request = control.beginPrompt(text)
   try {
     const sessionId = await ensureSession()
+    // The binding is re-checked after the await, because `ensureSession` can spend a
+    // round trip creating or restoring a conversation and the user may have picked a
+    // different one in the meantime. The generation check inside `ensureSession` only
+    // stops the *adoption* — the id it resolves to is still returned, so without this
+    // the prompt lands in the conversation they just left while the row is drawn in
+    // the one they chose. Refusing is the honest answer: their next message goes to
+    // where the panel is actually pointing.
+    if (control.id !== sessionId) {
+      throw new Error(getUiLocale() === 'zh'
+        ? '你切换了对话，这条消息没有发出。再发一次就会发到当前选中的对话。'
+        : 'You switched conversations, so this message was not sent. Send it again to reach the one now selected.')
+    }
     // The transcript row keeps the raw text so the panel shows what was typed;
     // the marker is what the model receives.
     await sessionRpc.prompt(sessionId, `${BROWSER_PANEL_MARKER} ${text}`, browserTimeZone())
@@ -1773,7 +1822,18 @@ function routeToolCall(call: ToolCall): void {
   // watch it happen. This is the one place that fires for every browser action,
   // including the ones that need no approval.
   autoOpenPanel()
-  activeToolCalls.get(call.id)?.controller.abort()
+  // A frame carrying an id already in the map replaces that entry, and the replaced
+  // call's own `result`/`fail` then return early at the identity check below — so its
+  // one-shot `settle()` would never fire and `cancelAllToolCalls()` could no longer
+  // reach it either, because it is not the map's occupant any more. `settled` is what
+  // a revocation barrier awaits, so an unsettled orphan hangs
+  // `revokeUnrestrictedAccess()` forever and the user's "off" never reaches storage.
+  // Settling here is safe: the promise is one-shot and the call is being abandoned.
+  const superseded = activeToolCalls.get(call.id)
+  if (superseded !== undefined) {
+    superseded.controller.abort()
+    superseded.settle()
+  }
   const controller = new AbortController()
   let settle!: () => void
   const activeCall: ActiveToolCall = {
@@ -2185,9 +2245,13 @@ chrome.runtime.onConnect.addListener((port) => {
         void selectSessionScope(scope, sessionId)
           // Asked for after the binding moved, so the follower streams the
           // conversation the panel is now showing rather than the previous one.
-          // A follow that fails must not fail the switch: the panel is bound
-          // either way, and only the live updates are missing.
-          .then(() => (follow && sessionId !== null ? startFollowingSession(sessionId) : undefined))
+          // Deliberately not awaited before the reply: the switch itself is a local
+          // change that has already happened, and holding the acknowledgement behind a
+          // round trip would make a slow bridge look like a picker that did nothing.
+          // `startFollowingSession` never rejects.
+          .then(() => {
+            if (follow && sessionId !== null) void startFollowingSession(sessionId)
+          })
           .then(
             () => { replyToPort(port, { type: 'session.result', id: requestId, ok: true }) },
             (error: unknown) => {

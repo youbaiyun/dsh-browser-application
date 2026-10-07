@@ -36,8 +36,39 @@ are listed only where this fork has something to say about them; see
     and clears it once a follow succeeds.
   - The follow call is skipped when the socket is already gone instead of racing the
     teardown, which used to log an unhandled rejection on the way down.
+  - The notice is dropped when the connection changes, because it describes the
+    connection that produced it; and only the newest follow request may write it, so a
+    slow failure for a conversation the user already left cannot overwrite the news
+    that the one they are looking at works. Requesting a follow no longer delays the
+    picker's acknowledgement: the switch is local and already done.
 
 ### Fixed
+
+- **A prompt could be delivered to the conversation the user had just left.** Creating
+  or restoring a conversation is a round trip, and picking another one during it
+  correctly stopped the *adoption* — but the resolved id was still handed to
+  `sessionRpc.prompt`, so the message landed in the abandoned conversation while its
+  row was drawn in the one the user chose. The binding is now re-checked after the
+  await and the send is refused with a sentence that says to send it again.
+- **A refused `browser_type` wrote the typed value into the activity list.** The
+  refusal quotes the value it could not match — `has no option matching "<value>"` —
+  which put a password or a token into `ControlState.activity` and the timeline, the
+  two places `activity.ts` promises never to echo typed text. The reason is kept and
+  the value is replaced by its length; the model gets the identical text either way.
+- **A duplicate `tool.call` id could hang the revocation barrier forever.** A second
+  frame with an id already in the map replaced the entry, and the replaced call's
+  close-out then returned early at an identity check — so its one-shot `settle()` never
+  fired and `cancelAllToolCalls()` could no longer reach it. `settled` is what
+  `revokeUnrestrictedAccess()` awaits, so "unrestricted access = off" cleared in memory
+  but never reached `storage.local`, and an MV3 restart restored it. The superseded call
+  is now settled before it is replaced.
+- **A cancelled image-recognition call still uploaded the image.** The relay path sent
+  `image.call` without checking the abort signal first, so a call cancelled while
+  queued behind another image was dispatched anyway — the user's image sent for an
+  answer nobody was waiting for, and billed. `DirectRecognizer` already guarded this.
+- **Page content that happened to carry a `tabs` array was reported as a tab listing.**
+  The tally is now read only for `browser_list_tabs`; any other wrapped result is page
+  content, and describing a read as a listing is worse than describing it as nothing.
 
 - **`browser_launch` claimed a windowless browser was running.** A Chromium process
   outlives its last window — closing the window can leave the process resident, and

@@ -27,13 +27,42 @@ import type { ToolAnswer, ToolCall } from './tools.ts'
 export function activitySummary(call: ToolCall, answer: ToolAnswer): string {
   const target = activityTarget(call)
   const head = target === '' ? call.name : `${call.name} ${target}`
-  if (!answer.ok) return `${head} · ${answer.error?.message ?? 'failed'}`
+  if (!answer.ok) {
+    const message = answer.error?.message ?? 'failed'
+    return `${head} · ${redactTypedText(message, call)}`
+  }
   if (call.name === 'browser_type') {
     const length = typeof call.args.text === 'string' ? call.args.text.length : 0
     return `${head} (${length} chars)`
   }
-  const outcome = activityOutcome(answer.result)
+  const outcome = activityOutcome(answer.result, call.name)
   return outcome === undefined ? head : `${head} ✓ ${outcome}`
+}
+
+/**
+ * Remove a typed value from an error message, keeping the rest of the reason.
+ *
+ * A refused `browser_type` quotes what was typed — "has no option matching
+ * \"<value>\"" — which is how a password or a token would end up in the activity list
+ * and the timeline, the two places this module promises never to echo typed text. The
+ * reason is still worth showing, and it is the identical to the model anyway, so the
+ * value is spliced out rather than the whole message dropped.
+ *
+ * The replacement carries the length so the line stays useful without the content,
+ * and matches the wording `browser_type` uses for a successful call.
+ *
+ * @param message - the failure text, as the tool reported it.
+ * @param call - the call, to recover the exact text that was typed.
+ * @returns the message with the typed value replaced.
+ */
+function redactTypedText(message: string, call: ToolCall): string {
+  const typed = call.args.text
+  if (typeof typed !== 'string' || typed === '') return message
+  // Only the tool that types text can quote it; a name or a URL is already public in
+  // this line, and redacting those would remove the reason instead of a secret.
+  if (call.name !== 'browser_type') return message
+  if (!message.includes(typed)) return message
+  return message.split(typed).join(`(${String(typed.length)} chars)`)
 }
 
 /**
@@ -44,22 +73,27 @@ export function activitySummary(call: ToolCall, answer: ToolAnswer): string {
  * that is too long to be an outcome is page content that happens to start the
  * result, so it is dropped rather than truncated into the list.
  */
-export function activityOutcome(result: unknown): string | undefined {
+export function activityOutcome(result: unknown, tool = ''): string | undefined {
   if (typeof result !== 'object' || result === null) return undefined
   const { text, tabs, snapshot } = result as { text?: unknown; tabs?: unknown; snapshot?: unknown }
   if (Array.isArray(tabs)) return `${String(tabs.length)} tabs listed`
   if (typeof text !== 'string') return snapshot === undefined ? undefined : 'snapshot captured'
+
   // Read-side results are wrapped in the untrusted-content boundary, whose first
-  // lines are the security notice and the nonce-bearing tag — neither is an
-  // outcome. `browser_list_tabs` puts a tab record inside that wrapper, so its
-  // size is reported rather than its opening marker.
+  // lines are the security notice and the nonce-bearing tag — neither is an outcome.
+  // `browser_list_tabs` puts its tab record inside that same wrapper, so the count is
+  // read from the payload — but only for the tool that lists tabs. Any other wrapped
+  // result is page content, and a page is free to contain JSON with a `tabs` array;
+  // reporting that as "N tabs listed" would describe a read as a listing.
   const inner = payloadBetweenMarkers(text)
   if (inner !== undefined) {
+    if (tool !== 'browser_list_tabs') return undefined
     const listed = countTabs(inner)
-    // A wrapped payload this formatter cannot read is page content, and quoting
-    // its opening brace would be worse than showing nothing at all.
+    // A wrapped payload this formatter cannot read is page content, and quoting its
+    // opening brace would be worse than showing nothing at all.
     return listed === undefined ? undefined : `${String(listed)} tabs listed`
   }
+
   const firstLine = text.trim().split('\n', 1)[0]?.trim() ?? ''
   // A fragment of the trust notice is not an outcome either: it appears when a
   // wrapped payload was truncated away to nothing.

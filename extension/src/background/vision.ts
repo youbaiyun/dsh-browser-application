@@ -177,6 +177,14 @@ export class BridgeRecognizer implements ImageRecognizer {
     source: ImageSource,
     signal: AbortSignal,
   ): Promise<RecognizerResult> {
+    // Checked before sending, not only after: the caller may have given up while this
+    // waited for a concurrency slot, and dispatching anyway uploads a user's image to
+    // the provider for an answer nobody is waiting for. `DirectRecognizer` guards the
+    // same way for the same reason; this path needs it more, because a queued call can
+    // wait arbitrarily long before reaching here.
+    if (signal.aborted) {
+      return { ok: false, code: 'image-cancelled', message: 'the call was cancelled', permanent: false }
+    }
     const id = crypto.randomUUID()
     const dispatched = this.send({ t: 'image.call', id, request, source })
     if (!dispatched) {
