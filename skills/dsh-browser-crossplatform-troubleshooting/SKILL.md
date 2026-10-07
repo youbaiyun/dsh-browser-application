@@ -198,13 +198,34 @@ second copy of the extension enabled in another profile.
 This is a layout bug, not a connection bug. The panel's CSS is
 `extension/control/styles.css`; the transcript and composer column
 is capped by `--panel-max`, which the panel sets from `settings.readWidth`.
-Two historical causes, both worth re-checking if it recurs:
+Three historical causes, all worth re-checking if it recurs. The symptom that
+looks most alarming — the panel draws its header and composer and the space
+between them is simply empty — is the third one, and it is invisible to every
+test in `extension/tests`: jsdom has no layout engine, so element widths there
+are all zero.
 
+- **A grid axis left unpinned pulls the content off the panel edge.** `.app` and
+  `.sheet` declare `grid-template-rows` *and* `grid-template-columns`; both axes
+  need `minmax(0, 1fr)`-style bounds. A missing `grid-template-columns` creates
+  an implicit `auto` column sized to its items' **max-content**, so one long
+  unbreakable string — a URL, or a failed tool summary with no spaces — stretched
+  the column to ~2346px inside a 360px panel, and `body { overflow-x: hidden }`
+  clipped it away. Confirm it in the panel's own DevTools with
+  `document.querySelector('.transcript').getBoundingClientRect().width`: if that
+  is far wider than `innerWidth`, this is the cause.
 - A grid row declared `1fr` instead of `minmax(0, 1fr)` lets content grow past
   its container, which cut the settings sheet in half and pushed the composer
   off-screen.
 - A flex child without `min-width: 0` (a `<textarea>` especially) refuses to
   shrink and forces a horizontal scrollbar that clips the whole panel.
+
+`--panel-max` must be **clamped to the panel**, never written through: the
+setting is a maximum reading width (default 640, and the panel may be 360), so
+applying it verbatim lays the text out wider than the panel that contains it.
+`applyReadWidth()` clamps to `root.clientWidth`, runs before the first paint, and
+is re-run by a `ResizeObserver` when the panel is dragged. Check
+`getComputedStyle(document.documentElement).getPropertyValue('--panel-max')` —
+it must never exceed `innerWidth`.
 
 ### Approvals never appear
 
@@ -267,7 +288,7 @@ Two things to check while you are there, because they are what the mode needs:
   mode mirrors the whole group once, which is what brings an existing transcript on
   screen. Second, a launch opens one follower per conversation on the bridge, so if a
   user reports the panel stuck on one conversation while others are active, the bridge
-  is the suspect: a bridge older than `0.38.4` follows a single Session and aborts the
+  is the suspect: a bridge older than `0.38.5` follows a single Session and aborts the
   previous follower when asked for another.
 
   First failure to check is a desktop running an older bridge, which answers

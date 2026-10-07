@@ -57,6 +57,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/**
+ * Whether a scroller is close enough to its end to count as "following the tail".
+ *
+ * One threshold, shared: the streaming repaint and the full repaint must agree on what
+ * "at the bottom" means, or a reader sitting near the end gets moved by one path and kept
+ * still by the other.
+ */
+function atBottom(scroller: Element): boolean {
+  return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 120
+}
+
 /** The connection word for one bridge state. */
 export function bridgeStateText(state: ControlState['bridge'], copy: ControlCopy): string {
   return copy.bridge[state] ?? copy.bridge.stopped
@@ -235,7 +246,18 @@ function iconButton(name: IconName, label: string, onClick: () => void): HTMLBut
 interface PendingCall {
   resolve: (value: { sessionId?: string }) => void
   reject: (error: Error) => void
+  /**
+   * Guard against a worker that never answers.
+   *
+   * A dropped `session.result` used to leave the promise pending forever, and whatever was
+   * waiting on it stayed waiting: a picker stuck on "loading", a send button stuck disabled.
+   * A rejection the caller can handle is strictly better than a promise that never settles.
+   */
+  timer: ReturnType<typeof setTimeout>
 }
+
+/** How long one `session.*` request may go unanswered before it is failed. */
+export const CALL_TIMEOUT_MS = 15_000
 
 /** Port client for the `dsh-control` channel, with one reconnect attempt. */
 export class ControlPort {
@@ -307,7 +329,11 @@ export class ControlPort {
         reject(new Error('background disconnected'))
         return
       }
-      this.pending.set(id, { resolve, reject })
+      const timer = setTimeout(() => {
+        if (!this.pending.delete(id)) return
+        reject(new Error('no answer from the background'))
+      }, CALL_TIMEOUT_MS)
+      this.pending.set(id, { resolve, reject, timer })
     })
   }
 
@@ -316,6 +342,9 @@ export class ControlPort {
     this.retry = null
     const port = this.port
     this.port = null
+    // Settle anything still in flight. Leaving these pending meant a caller could wait for
+    // an answer that can no longer arrive — the panel is going away.
+    this.failAll(new Error('panel closed'))
     try {
       port?.disconnect()
     } catch {
@@ -326,6 +355,7 @@ export class ControlPort {
   private failAll(error: Error): void {
     for (const [id, call] of this.pending) {
       this.pending.delete(id)
+      clearTimeout(call.timer)
       call.reject(error)
     }
   }
@@ -359,6 +389,7 @@ export class ControlPort {
         const call = this.pending.get(raw.id)
         if (call === undefined) return
         this.pending.delete(raw.id)
+        clearTimeout(call.timer)
         if (raw.ok === true) call.resolve({ ...(typeof raw.sessionId === 'string' ? { sessionId: raw.sessionId } : {}) })
         else call.reject(new Error(typeof raw.error === 'string' ? raw.error : 'request failed'))
         return
@@ -544,6 +575,31 @@ export class App {
   private readonly expanded = new Set<string>()
   private activity: ActivityEntry[] = []
   private run: RunState = { assistantText: '', plan: null }
+  /**
+   * Whether a streaming repaint is already queued for this frame.
+   *
+   * A reply can arrive at hundreds of deltas per second, and each repaint renders the whole
+   * accumulated text (Markdown parse + sanitize + innerHTML). Doing that per delta made the
+   * work quadratic in the reply length, so the panel fell permanently behind — it never
+   * caught up, which is why it looked frozen rather than slow. Coalescing to one repaint per
+   * frame keeps the cost linear in the reply length.
+   */
+  private streamRepaintQueued = false
+  /**
+   * What the settings sheet was last drawn from, so a state push can skip rebuilding it.
+   *
+   * Only the fields the sheet actually reads go in — see `refreshSettingsSheet`.
+   */
+  private settingsFingerprint: string | null = null
+  /**
+   * The conversation the live reply belongs to.
+   *
+   * `run.assistantText` describes one conversation's in-flight reply, so it has to be dropped
+   * when the panel is pointed at a different one. Without this the half-written answer of the
+   * conversation you left kept rendering inside the one you switched to — with a blinking
+   * caret, as though it were still arriving.
+   */
+  private runSessionId: string | null = null
   private backgroundDown = false
   private notice: string | null = null
   private composerError: string | null = null
@@ -553,8 +609,26 @@ export class App {
   private sessionsLoading = false
   private draft = ''
   private busy = false
-  /** True while the draft should be left alone, so a re-render never eats it. */
-  private pinnedScroll = true
+  /**
+   * Transcript scroll to restore after the next full repaint.
+   *
+   * `render()` replaces the whole tree, which destroys the scroller and resets its position
+   * to the top. So the position is captured before the rebuild and re-applied after. This
+   * used to be a `pinnedScroll = true` flag that nothing ever cleared, so every one of the
+   * many full repaints scrolled the reader to the bottom — including repaints triggered by
+   * a connection update while they were reading history.
+   *
+   * `null` means "at the bottom", which is also the state to start in.
+   */
+  private restoreScroll: number | null = null
+  /**
+   * Re-clamps the reading cap when the panel is resized.
+   *
+   * The cap is a maximum column width, so it has to follow the panel: dragging the side panel
+   * narrower while a wide cap was applied is what left the content laid out past the edge and
+   * invisible.
+   */
+  private widthObserver: ResizeObserver | null = null
 
   constructor(
     private readonly root: HTMLElement,
@@ -566,8 +640,18 @@ export class App {
   start(): void {
     document.title = this.copy.documentTitle
     document.documentElement.lang = this.locale
+    // Apply the cap before the first paint. It used to be applied only when a `state` push
+    // arrived, so the panel opened with the stylesheet's default cap (640px) and stayed there
+    // until the worker answered — and forever if it never did. In a 360px panel that is
+    // content laid out wider than the panel, which is the blank-panel bug.
+    this.applyReadWidth()
     this.render()
     this.port.connect()
+    // The user drags the side panel, so the cap has to be re-applied whenever it changes.
+    if (typeof ResizeObserver !== 'undefined') {
+      this.widthObserver = new ResizeObserver(() => { this.applyReadWidth() })
+      this.widthObserver.observe(this.root)
+    }
   }
 
   /**
@@ -579,10 +663,25 @@ export class App {
    */
   private applyReadWidth(): void {
     const width = this.state?.settings.readWidth ?? SETTINGS_DEFAULTS.readWidth
-    document.documentElement.style.setProperty('--panel-max', `${width}px`)
+    // The cap has to be clamped to the panel, not written through.
+    //
+    // The value is a *maximum* reading width, and the panel is whatever width the user
+    // dragged it to. Setting `--panel-max` to 640 in a 360px panel made every text column
+    // 640px wide inside a 360px box; the content was laid out past the right edge and the
+    // transcript's `overflow-x: hidden` clipped it, which is what "the panel is blank"
+    // turned out to be. The comment below always claimed the narrower panel wins — now the
+    // code does too.
+    // A panel that has not been laid out yet reports 0. Falling back to the raw configured cap
+    // there would re-create the very overflow this clamps: a hidden panel would get
+    // `--panel-max: 640px` and paint its content wider than itself the moment it appeared.
+    const measured = this.root.clientWidth
+    const available = measured > 0 ? measured : Math.min(width, SETTINGS_DEFAULTS.readWidth)
+    document.documentElement.style.setProperty('--panel-max', `${Math.min(width, available)}px`)
   }
 
   dispose(): void {
+    this.widthObserver?.disconnect()
+    this.widthObserver = null
     this.port.dispose()
   }
 
@@ -595,6 +694,12 @@ export class App {
         if (parsed === null) return
         this.state = parsed
         this.backgroundDown = false
+        // A different conversation means the previous one's in-flight reply is no longer ours.
+        const sessionId = parsed.session.id
+        if (sessionId !== this.runSessionId) {
+          this.runSessionId = sessionId
+          this.run = { assistantText: '', plan: null }
+        }
         const snapshot = mergeApprovals(this.approvals, parsed.approvals, { full: true, answered: this.answered })
         this.approvals.clear()
         for (const [id, request] of snapshot) this.approvals.set(id, request)
@@ -604,7 +709,18 @@ export class App {
         this.activity = parsed.activity.slice(0, ACTIVITY_LIMIT)
         if (parsed.session.turn === 'idle' && !parsed.session.pendingPrompt) this.busy = false
         this.applyReadWidth()
-        this.render()
+        // Repaint what the state can change, not the whole panel. A full rebuild replaces the
+        // composer too, and the composer holds the reader's focus and their half-typed
+        // message: with a state push every 50 ms while a reply streams, rebuilding it threw
+        // away every keystroke typed during a turn. Both parts below are cheap and neither
+        // touches the composer or the settings sheet.
+        this.replaceHeader()
+        this.renderTranscript()
+        this.refreshSettingsSheet()
+        // The turn flag arrives in `state` too, and when it flips the send button has to become
+        // a stop button (or back). Without this the button kept the previous turn's shape until
+        // some other event happened to refresh it.
+        this.refreshComposerAction()
         return
       }
       case 'activity':
@@ -623,27 +739,35 @@ export class App {
       case 'session.event':
         this.applySessionEvent(message.sessionId, message.event)
         return
+      // These three answer a request the reader made, so they land while the reader may be
+      // typing — a settings change echoes a result, the picker returns a list, a rebind
+      // answers. All they change is the notice, the conversation list or the composer error,
+      // so none of them needs the full rebuild that used to replace the textarea.
       case 'session.list':
         this.sessionsLoading = false
         if (message.ok) this.sessions = message.sessions
         else this.composerError = message.error
-        this.render()
+        this.refreshForTurn()
+        this.refreshSettingsSheet()
         return
       case 'settings.result':
         this.notice = message.ok ? null : message.error
-        this.render()
+        this.refreshForTurn()
         return
       case 'affinity.rebind.result':
         if (!message.ok) this.notice = `${this.copy.tab.bindFailed}: ${message.error}`
-        this.render()
+        this.refreshForTurn()
         return
     }
   }
 
   private applyStream(raw: unknown): void {
     if (!isRecord(raw)) return
-    // The worker only forwards its own session, but a reconnect can leave a
-    // stale frame in flight; never render another session's text.
+    // The panel renders exactly one live reply — one `run.assistantText` and one streaming
+    // bubble — so it accepts only its own conversation's deltas. Under 「工作区内」 the worker
+    // forwards the mirrored conversations too (tagging them with `attributeTo`), and their
+    // rows still arrive through `state.timeline`; only their *live text* is skipped here,
+    // because there is nowhere to put a second conversation's half-written reply.
     const sessionId = typeof raw.sessionId === 'string' ? raw.sessionId : ''
     const active = this.state?.session.id ?? null
     if (active !== null && sessionId !== active) return
@@ -672,6 +796,10 @@ export class App {
   }
 
   private applySessionEvent(sessionId: string, event: unknown): void {
+    // Turn flags belong to the panel's own conversation. A mirrored conversation's turn
+    // events arrive too (「工作区内」), and applying them here would make the panel claim a
+    // turn is running — and swap the send button for a stop button — because some other
+    // conversation started one. Its rows still reach the transcript through `state.timeline`.
     const active = this.state?.session.id ?? null
     if (active !== null && sessionId !== active) return
     if (!isRecord(event)) return
@@ -679,13 +807,13 @@ export class App {
     if (type === 'turn/start') {
       this.setSession({ turn: 'running', pendingPrompt: false })
       this.run = { assistantText: '', plan: null }
-      this.render()
+      this.refreshForTurn()
       return
     }
     if (type === 'turn/end') {
       this.setSession({ turn: 'idle', pendingPrompt: false })
       this.busy = false
-      this.render()
+      this.refreshForTurn()
       return
     }
     const text = assistantTextFromEvent(event)
@@ -747,7 +875,7 @@ export class App {
   private runOpen(intent: Extract<InputIntent, { kind: 'open' }>): void {
     const echo = intent.echo
     this.busy = true
-    this.render()
+    this.refreshForTurn()
     void this.port.call({
       type: 'open.run',
       id: '',
@@ -758,13 +886,13 @@ export class App {
       .then(() => {
         this.draft = ''
         this.busy = false
-        this.render()
+        this.refreshForTurn()
       })
       .catch((error: unknown) => {
         this.busy = false
         this.composerError = error instanceof Error ? error.message : String(error)
         this.draft = echo
-        this.render()
+        this.refreshForTurn()
       })
   }
 
@@ -772,19 +900,19 @@ export class App {
   private runCommand(intent: Extract<InputIntent, { kind: 'command' }>): void {
     const echo = intent.echo
     this.busy = true
-    this.render()
+    this.refreshForTurn()
     void this.port.call({ type: 'command.run', id: '', name: intent.name, args: intent.args })
       .then(() => {
         this.draft = ''
         this.busy = false
-        this.render()
+        this.refreshForTurn()
       })
       .catch((error: unknown) => {
         this.busy = false
         this.composerError = error instanceof Error ? error.message : String(error)
         // Keep the text so a rejected command can be corrected, not retyped.
         this.draft = echo
-        this.render()
+        this.refreshForTurn()
       })
   }
 
@@ -792,7 +920,7 @@ export class App {
   private async runPrompt(text: string): Promise<void> {
     this.busy = true
     this.composerError = null
-    this.render()
+    this.refreshForTurn()
     try {
       // Read the session once: every await below can be interleaved with a
       // `state` push, and a prompt must never be sent for a null session.
@@ -806,11 +934,11 @@ export class App {
       this.draft = ''
       this.run = { assistantText: '', plan: null }
       this.setSession({ id: sessionId, pendingPrompt: true })
-      this.render()
+      this.refreshForTurn()
     } catch (error: unknown) {
       this.busy = false
       this.composerError = error instanceof Error ? error.message : String(error)
-      this.render()
+      this.refreshForTurn()
     }
   }
 
@@ -821,7 +949,7 @@ export class App {
       })
       .finally(() => {
         this.busy = false
-        this.render()
+        this.refreshForTurn()
       })
   }
 
@@ -829,6 +957,16 @@ export class App {
 
   private render(): void {
     const draft = this.draft
+    // The old scroller is about to be discarded, so read it before the swap: what the reader
+    // was looking at has to survive the rebuild. The remembered value is only a fallback for
+    // the case with no DOM at all (the first paint), because live DOM beats a stale number.
+    const previous = this.root.querySelector('.transcript')
+    const restore = previous === null
+      ? this.restoreScroll
+      : atBottom(previous)
+        ? null
+        : previous.scrollTop
+
     const shell = el('div', { className: 'app' })
     const transcript = el('div', { className: 'transcript' })
     const inner = el('div', { className: 'transcript__inner' })
@@ -845,7 +983,11 @@ export class App {
       input.value = this.draft
       this.autoGrow(input)
     }
-    if (this.pinnedScroll) transcript.scrollTop = transcript.scrollHeight
+    // `null` means the reader was at the bottom, which is the only case that follows the
+    // tail; anywhere else keeps them exactly where they were reading.
+    this.restoreScroll = restore
+    if (restore === null) transcript.scrollTop = transcript.scrollHeight
+    else transcript.scrollTop = restore
   }
 
   private fillTranscript(inner: Element): void {
@@ -894,7 +1036,50 @@ export class App {
     }
   }
 
-  /** Repaint the transcript in place, keeping the composer untouched. */
+  /**
+   * Repaint the header in place.
+   *
+   * The header is the only other part of the panel that renders from `state`, so a state
+   * push repaints it and the transcript and leaves the composer alone — replacing the
+   * composer is what lost the reader's focus and typing.
+   */
+  private replaceHeader(): void {
+    const existing = this.root.querySelector('.header')
+    if (existing === null) {
+      this.render()
+      return
+    }
+    existing.replaceWith(this.header())
+  }
+
+  /**
+   * Repaint what a turn boundary changes, without rebuilding the composer.
+   *
+   * `turn/start` and `turn/end` used to call the full `render()`, which replaced the
+   * textarea and dropped the reader's focus and typing at the exact moment they were
+   * composing their next message (and again when the reply finished). Everything a turn
+   * change can affect is the header, the transcript, the send/stop button and the meta line;
+   * the textarea itself is untouched by all of it.
+   */
+  private refreshForTurn(): void {
+    this.replaceHeader()
+    this.renderTranscript()
+    this.refreshComposerAction()
+  }
+
+  /** Swap the send button for a stop button, or back, keeping the textarea in place. */
+  private refreshComposerAction(): void {
+    const existing = this.root.querySelector('#composer-action')
+    if (existing === null) {
+      this.render()
+      return
+    }
+    const next = this.composerAction()
+    next.id = 'composer-action'
+    existing.replaceWith(next)
+    this.refreshComposerMeta()
+  }
+
   private renderTranscript(): void {
     const inner = this.root.querySelector('.transcript__inner')
     const transcript = this.root.querySelector('.transcript')
@@ -902,25 +1087,58 @@ export class App {
       this.render()
       return
     }
-    const atBottom = transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 120
+    const pinned = atBottom(transcript)
     inner.replaceChildren()
     this.fillTranscript(inner)
-    if (atBottom) transcript.scrollTop = transcript.scrollHeight
+    if (pinned) transcript.scrollTop = transcript.scrollHeight
+  }
+
+  /**
+   * Coalesce streaming repaints to one per frame.
+   *
+   * Deltas can arrive far faster than the display refreshes, so repainting on every one
+   * repeated identical work and let the queue grow without bound. Setting a flag and
+   * repainting on the next animation frame makes the cost depend on the reply length
+   * instead of on the arrival rate.
+   */
+  private renderStreaming(): void {
+    if (this.streamRepaintQueued) return
+    this.streamRepaintQueued = true
+    requestAnimationFrame(() => {
+      this.streamRepaintQueued = false
+      this.repaintStreaming()
+    })
   }
 
   /** Repaint only the streaming reply, which is the common case while it types. */
-  private renderStreaming(): void {
+  private repaintStreaming(): void {
     // The task list changes on the same event as the text, so it is refreshed
     // with the bubble rather than waiting for a full transcript repaint.
     this.paintPlan()
-    const bubble = this.root.querySelector('.msg--streaming .msg__text')
+    // Both the synthetic row and a durable running row carry this hook, so the typing
+    // reply is found whichever one the worker produced.
+    const bubble = this.root.querySelector('[data-streaming] .msg__text')
     if (bubble === null) {
+      // Nothing is streaming on screen yet. A full rebuild is correct here (the row is
+      // about to appear) and it happens once per reply rather than once per frame.
       this.renderTranscript()
       return
     }
-    bubble.replaceChildren(...this.assistantBubbleChildren(this.run.assistantText, true))
+    // Read the text to show from the row, not from `run.assistantText`: the durable row is
+    // the committed text plus this attempt, so using the attempt alone would drop what came
+    // before it. A reply queued for a row that is not in the transcript yet keeps the text
+    // already on screen rather than blanking it.
+    const row = this.transcriptRows().find((entry) => this.isStreamingRow(entry))
+    if (row === undefined) return
+
+    if (bubble.textContent !== row.text) {
+      bubble.replaceChildren(...this.assistantBubbleChildren(row.text, true))
+    }
+    // Follow the tail only if the reader had not left it. Read before the write above would
+    // be ideal, but the scroll offset is unaffected by replacing the bubble's own children
+    // (only its height changes), so this stays a single flush.
     const transcript = this.root.querySelector('.transcript')
-    if (transcript !== null) transcript.scrollTop = transcript.scrollHeight
+    if (transcript !== null && atBottom(transcript)) transcript.scrollTop = transcript.scrollHeight
   }
 
   /** Repaint the task list in place, inserting it when the turn announces one. */
@@ -1034,12 +1252,25 @@ export class App {
       ],
     }))
     const body = el('div', { className: 'sheet__body' })
+    this.fillSettingsBody(body)
+    sheet.append(body)
+    return sheet
+  }
+
+  /**
+   * Build the settings rows into an existing body.
+   *
+   * Split out so a state push can refresh the rows — the connection badge among them —
+   * without rebuilding the sheet, which would lose its scroll position and close any open
+   * dropdown. Only the body is replaced; the header and its close button stay put.
+   */
+  private fillSettingsBody(body: Element): void {
     const settings = this.state?.settings ?? normalizeSettings(undefined)
     // Only choices the user can actually make: the bridge address, the token,
     // and the approval-notification fallback are all decided for them by the
     // Chrome-over-loopback path. An installed troubleshooting skill covers the
     // cases where a human has to intervene.
-    body.append(
+    body.replaceChildren(
       this.openPagesSetting(),
       this.sharingSetting(settings),
       this.conversationSetting(settings),
@@ -1056,8 +1287,35 @@ export class App {
         children: [el('div', { className: 'setting__help', text: this.copy.settings.widthHint })],
       }),
     )
-    sheet.append(body)
-    return sheet
+  }
+
+  /**
+   * Refresh the open settings sheet, but only when something it draws has changed.
+   *
+   * Every `state` push used to rebuild the sheet, and pushes arrive every 50 ms while a reply
+   * streams. The sheet holds four `<select>`s and two switches, so rebuilding it twenty times
+   * a second destroyed the focused control and closed any open dropdown — the sheet was
+   * unusable during exactly the moment someone would reach for it. Nothing it draws depends
+   * on the transcript, so the comparison below is the whole set of inputs.
+   */
+  private refreshSettingsSheet(): void {
+    const body = this.root.querySelector('.sheet__body')
+    if (body === null) return
+    // Everything `fillSettingsBody` reads, not just the settings. The conversation picker also
+    // draws from the fetched list and its loading flag, so leaving those out meant the reply to
+    // `session.list` was swallowed by this guard: the sheet was never redrawn with the options,
+    // and a `<select>` holding only its placeholder never fires `change` — the picker latched on
+    // 「正在读取…」 with no way out.
+    const fingerprint = JSON.stringify({
+      settings: this.state?.settings ?? null,
+      policy: this.state?.policy ?? null,
+      sessions: this.sessions.length,
+      sessionsLoading: this.sessionsLoading,
+      pinnedSessionId: this.state?.settings.pinnedSessionId ?? null,
+    })
+    if (fingerprint === this.settingsFingerprint) return
+    this.settingsFingerprint = fingerprint
+    this.fillSettingsBody(body)
   }
 
   /**
@@ -1160,7 +1418,14 @@ export class App {
     if (this.sessionsLoading) return
     this.sessionsLoading = true
     void this.port.call({ type: 'session.list', id: '' })
-      .catch(() => { /* The list result carries the failure; the picker stays empty. */ })
+      .catch(() => {
+        // The list result carries a failure the worker answers with, but the call itself can
+        // fail too — a dead port rejects immediately. Without clearing the flag here, that
+        // early return above latched forever and the picker stayed on "loading" with no way
+        // back for the rest of the panel's life.
+        this.sessionsLoading = false
+        this.refreshSettingsSheet()
+      })
   }
 
   /**
@@ -1320,7 +1585,12 @@ export class App {
 
   private assistantBubbleChildren(text: string, streaming: boolean): Node[] {
     const nodes: Node[] = []
-    if (hasMarkdownContent(text)) {
+    if (streaming) {
+      // While the reply types, show it as plain text. Rendering Markdown here would re-parse
+      // and re-sanitize the entire reply once per delta, which is what made a long answer
+      // freeze the panel; the finished reply is rendered properly one line below.
+      if (text !== '') nodes.push(el('div', { text }))
+    } else if (hasMarkdownContent(text)) {
       const html = el('div')
       // The only innerHTML in this file, and the input is sanitized markdown.
       html.innerHTML = renderMarkdown(text)
@@ -1331,13 +1601,30 @@ export class App {
   }
 
   private assistantNode(row: TimelineEntry): HTMLElement {
-    const streaming = row.id === STREAMING_ID
+    const streaming = this.isStreamingRow(row)
     const bubble = el('div', { className: 'msg__text' })
     bubble.append(...this.assistantBubbleChildren(row.text, streaming))
     return el('div', {
       className: streaming ? 'msg msg--assistant msg--streaming' : 'msg msg--assistant',
+      // A durable row that is still running is marked so the streaming repaint can find it
+      // and update its text in place, rather than rebuilding the whole transcript.
+      attributes: streaming ? { 'data-streaming': 'true' } : {},
       children: [bubble],
     })
+  }
+
+  /**
+   * Whether a row is the reply currently being typed.
+   *
+   * There are two ways a row can be streaming, and treating only the first as streaming was
+   * the reason a long reply stayed slow: the worker creates a durable `assistant` row on the
+   * first delta and updates it `running` for the whole turn, so the synthetic row below is
+   * never added and the durable one — which is the *normal* case in the real app — was being
+   * rendered as finished Markdown on every frame.
+   */
+  private isStreamingRow(row: TimelineEntry): boolean {
+    if (row.id === STREAMING_ID) return true
+    return row.kind === 'assistant' && row.state === 'running'
   }
 
   private toolNode(row: TimelineEntry): HTMLElement {
@@ -1410,6 +1697,32 @@ export class App {
     }]
   }
 
+  /**
+   * The composer's send-or-stop control.
+   *
+   * Split out because a turn boundary changes only this button, and swapping the whole
+   * composer to get it would replace the textarea the reader is typing in.
+   */
+  private composerAction(): HTMLButtonElement {
+    const button = this.runIsActive()
+      ? el('button', {
+          className: 'btn btn--icon',
+          attributes: { type: 'button', title: this.copy.composer.stop, 'aria-label': this.copy.composer.stop },
+          on: { click: () => { this.stopRun() } },
+          children: [icon('stop', 16)],
+        })
+      : el('button', {
+          className: 'btn btn--primary btn--icon',
+          attributes: { type: 'button', title: this.copy.composer.send, 'aria-label': this.copy.composer.send },
+          on: { click: () => { this.submit() } },
+          children: [icon('send', 16)],
+        })
+    if (this.busy) button.setAttribute('disabled', 'true')
+    // Marked so a turn boundary can find and replace exactly this node.
+    button.id = 'composer-action'
+    return button
+  }
+
   private composerWrap(): HTMLElement {
     const wrap = el('div', { className: 'composer-wrap' })
     const box = el('div', { className: 'composer__box' })
@@ -1436,22 +1749,7 @@ export class App {
       }
     })
 
-    const action = this.runIsActive()
-      ? el('button', {
-          className: 'btn btn--icon',
-          attributes: { type: 'button', title: this.copy.composer.stop, 'aria-label': this.copy.composer.stop },
-          on: { click: () => { this.stopRun() } },
-          children: [icon('stop', 16)],
-        })
-      : el('button', {
-          className: 'btn btn--primary btn--icon',
-          attributes: { type: 'button', title: this.copy.composer.send, 'aria-label': this.copy.composer.send },
-          on: { click: () => { this.submit() } },
-          children: [icon('send', 16)],
-        })
-    if (this.busy) action.setAttribute('disabled', 'true')
-
-    box.append(input, action)
+    box.append(input, this.composerAction())
     wrap.append(el('div', { className: 'composer', children: [box, this.composerMeta()] }))
     queueMicrotask(() => { this.autoGrow(input) })
     return wrap

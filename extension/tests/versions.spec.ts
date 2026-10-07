@@ -43,5 +43,8 @@ describe('version agreement', () => {
     expect(readVersion('package.json')).toBe(readVersion('../package.json'))
     expect(readVersion('../packages/protocol/package.json')).toBe(readVersion('../package.json'))
     expect(readVersion('../packages/bridge/package.json')).toBe(readVersion('../package.json'))
+    // The benchmark harness is the fourth package. It was missing from this test, which is
+    // why it was the one a version bump could quietly leave behind.
+    expect(readVersion('../benchmark/package.json')).toBe(readVersion('../package.json'))
   })
 })

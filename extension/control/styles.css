@@ -58,7 +58,15 @@
 
   --text: #0f1115;
   --text-secondary: #61666b;
-  --text-tertiary: #81858c;
+  /*
+   * Quiéter than --text-secondary but still readable: the previous #81858c measured
+   * 3.71:1 on white and 3.48:1 on --bg-subtle, while this token is used as *text* at
+   * 11-13px in a dozen places (tab labels, tool lines, plan counts, hints, help lines).
+   * AA wants 4.5:1 at those sizes; #6c7176 measures 4.93:1 and still reads as the
+   * quietest of the three. The same token is also a focus ring, where 4.93:1 is
+   * comfortably above the 3:1 non-text threshold.
+   */
+  --text-tertiary: #6c7176;
 
   --border: rgb(0 0 0 / 10%);
   --border-strong: rgb(0 0 0 / 18%);
@@ -234,6 +242,16 @@ body { overflow-x: hidden; }
   /* `minmax(0, 1fr)` on the transcript row, or the row grows to its content and
      pushes the composer off the bottom of a short panel. */
   grid-template-rows: var(--header-h) minmax(0, 1fr) auto;
+  /*
+   * And the same guard on the other axis, which was missing. Without a column definition the
+   * grid creates an implicit `auto` column, which is sized to its items' *max-content* — so one
+   * long unbreakable tool summary (a URL, or a run of text with no spaces) made the column
+   * thousands of pixels wide. `.app` stayed 360px, the transcript inside it did not, and
+   * `body { overflow-x: hidden }` clipped the content off the right edge: the panel drew its
+   * header and composer and looked blank in between. This is the real cause of that report;
+   * the `--panel-max` clamp was only ever a contributing one.
+   */
+  grid-template-columns: minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   min-width: 0;
@@ -263,7 +281,15 @@ body { overflow-x: hidden; }
 }
 
 .header__tab-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.header__actions { display: flex; align-items: center; gap: 2px; flex: none; }
+/*
+ * The action row has to be able to shrink. With `flex: none` here and
+ * `.btn { white-space: nowrap }`, the row could not get narrower than its contents, and
+ * `body { overflow-x: hidden }` clipped whatever fell off the right edge — which is the
+ * settings button, the panel's only route to its own settings, on a narrow panel whose
+ * controlled tab had been lost.
+ */
+.header__actions { display: flex; align-items: center; gap: 2px; flex: 0 1 auto; min-width: 0; }
+.header__actions .btn:not(.btn--icon) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 .dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text-tertiary); margin-right: var(--space-1); }
 .dot--connected { background: var(--success); }
@@ -279,6 +305,11 @@ body { overflow-x: hidden; }
   overflow-x: hidden;
   padding: var(--space-4) var(--space-3) var(--space-2);
   min-height: 0;
+  /* Never let a wide child stretch the scroller. Without this the row can grow past the
+  panel and its own `overflow-x: hidden` then clips the content out of view. */
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   scrollbar-gutter: stable;
 }
 
@@ -530,6 +561,12 @@ body { overflow-x: hidden; }
 }
 
 .composer__error { color: var(--danger); }
+/*
+ * The quiet other half of the meta line: a half-written `@` directive is a reminder of the
+ * shape, not a complaint. It had no rule at all, so it inherited the body text colour and read
+ * as a statement instead of a hint.
+ */
+.composer__hint { color: var(--text-tertiary); }
 
 /* ------------------------------------------------------------------ *
  * Buttons
@@ -631,6 +668,10 @@ body { overflow-x: hidden; }
      row can grow to its content, which is what cut the sheet off halfway down
      and left the rest of the panel blank. */
   grid-template-rows: var(--header-h) minmax(0, 1fr);
+  /* The same guard on the column axis as `.app` needs: without it the implicit `auto` column
+     is sized to its items' max-content, and a long conversation title in the picker is enough
+     to push the sheet's contents past the panel edge. */
+  grid-template-columns: minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   background: var(--bg);
@@ -691,7 +732,16 @@ body { overflow-x: hidden; }
 .switch input:focus-visible ~ .switch__track { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 .select {
-  flex: none;
+  /*
+   * Must be allowed to shrink. Its width comes from the widest `<option>`, and the
+   * conversation picker is filled with real desktop conversation titles, so `flex: none`
+   * let a long title push the control past the panel edge — where `overflow-x: hidden` on
+   * the sheet and on `body` clipped it. The result was a dropdown whose arrow was cut off
+   * and could not be reached.
+   */
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
   padding: var(--space-1) var(--space-2);
   font: inherit;
   font-size: var(--fs-meta);
@@ -702,5 +752,15 @@ body { overflow-x: hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  /*
+   * `animation-duration: 0.001ms` alone does not remove a repeating animation: the caret
+   * blinked as `infinite` with a near-zero period, which is motion the reader asked not to
+   * have. Zeroing the iteration count actually stops it.
+   */
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .caret { animation: none; opacity: 1; }
 }

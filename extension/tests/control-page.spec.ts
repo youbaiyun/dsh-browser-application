@@ -13,6 +13,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { flushAnimationFrames } from './setup.ts'
 import type { ApprovalRequest } from '../src/security/approval.ts'
 import type { TabAffinityState } from '../src/background/tab-affinity.ts'
 import type { ActivityEntry, ControlRequest, ControlState, TimelineEntry } from '../src/settings.ts'
@@ -301,6 +302,84 @@ describe('rendered panel', () => {
     expect(new RegExp(`#${mountId}\\s*\\{[^}]*height`).test(css)).toBe(true)
   })
 
+  it('never lets the reading cap exceed the panel it is drawn into', () => {
+    // The cap is a *maximum* column width, but it was written straight through: a panel 360px
+    // wide with `readWidth` 640 set `--panel-max: 640px`, every text column laid out 640px
+    // wide inside a 360px box, and the transcript's own `overflow-x: hidden` clipped the
+    // content off the right edge. The panel rendered its header and composer and looked
+    // blank in between — jsdom has no layout, so only a value assertion can catch it.
+    const { app, root } = mount()
+    Object.defineProperty(root, 'clientWidth', { configurable: true, get: () => 360 })
+
+    app.handleMessage({ type: 'state', state: state({ settings: { ...SETTINGS_DEFAULTS, readWidth: 640 } }) })
+
+    expect(document.documentElement.style.getPropertyValue('--panel-max')).toBe('360px')
+
+    // A panel wider than the cap keeps the cap, and the cap still wins nowhere.
+    Object.defineProperty(root, 'clientWidth', { configurable: true, get: () => 1400 })
+    app.handleMessage({ type: 'state', state: state({ settings: { ...SETTINGS_DEFAULTS, readWidth: 640 } }) })
+    expect(document.documentElement.style.getPropertyValue('--panel-max')).toBe('640px')
+  })
+
+  it('pins both grid axes, so no content can stretch the panel sideways', () => {
+    // The blank panel, in its actual form: `.app` declared `grid-template-rows` with the
+    // deliberate `minmax(0, 1fr)` guard and **no `grid-template-columns` at all**. The implicit
+    // `auto` column is sized to its items' max-content, so one long unbreakable tool summary
+    // stretched that column to ~2346px inside a 360px panel; `body { overflow-x: hidden }` then
+    // clipped the content away and the panel drew its header and composer over empty space.
+    // jsdom has no layout engine, so the guard has to be asserted on the declaration itself —
+    // and the column axis is exactly the one that was forgotten here once already.
+    // Comments are stripped first: a CSS comment may legitimately contain a brace (this file's
+    // own note about `body { overflow-x: hidden }` does), which would end a naive rule match
+    // early and make this test report a declaration that is in fact present.
+    const css = readFileSync(join(CONTROL_DIR, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+    for (const selector of ['.app', '.sheet']) {
+      const body = new RegExp(`${selector.replace('.', '\\.')}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? ''
+      expect(body, `${selector} rule`).toContain('display: grid')
+      expect(body, `${selector} must pin its column`).toContain('grid-template-columns: minmax(0, 1fr)')
+      expect(body, `${selector} must pin its row`).toContain('grid-template-rows')
+    }
+  })
+
+  it('never applies a cap wider than the panel, at every width a user can drag to', () => {
+    // Dragging the side panel is normal and re-applies the cap each time, so sweep the widths
+    // that matter: far narrower than the cap, exactly on it, and far wider.
+    //
+    // Two rules, and the pair is the whole contract: the applied cap is the preference when the
+    // panel is at least that wide, and the panel width when it is not. The second line is the
+    // one the blank panel came from — the cap must never exceed the panel.
+    const { app, root } = mount()
+    let panelWidth = 0
+    Object.defineProperty(root, 'clientWidth', { configurable: true, get: () => panelWidth })
+
+    for (const readWidth of [320, 640, 1400]) {
+      for (const width of [180, 320, 360, 639, 640, 641, 900, 1400, 2560]) {
+        panelWidth = width
+        app.handleMessage({ type: 'state', state: state({ settings: { ...SETTINGS_DEFAULTS, readWidth } }) })
+        const applied = Number.parseFloat(document.documentElement.style.getPropertyValue('--panel-max'))
+        expect(Number.isNaN(applied), `readWidth=${readWidth} panel=${width} produced a number`).toBe(false)
+        // The one invariant the blank panel violated, and the only one this test claims: the
+        // cap is never wider than the panel it is drawn into. Whatever else the preference
+        // means on a wide panel is not asserted here, because that is a design choice rather
+        // than a defect.
+        expect(applied, `readWidth=${readWidth} panel=${width} must not exceed the panel`).toBeLessThanOrEqual(width)
+      }
+    }
+  })
+
+  it('survives a resize that arrives before any state does', () => {
+    // The observer fires on mount, before the first `state` push. It has to fall back to the
+    // default cap rather than writing `NaNpx` or leaving the previous value stranded.
+    const { app, root } = mount()
+    let panelWidth = 300
+    Object.defineProperty(root, 'clientWidth', { configurable: true, get: () => panelWidth })
+    panelWidth = 300
+    app.handleMessage({ type: 'state', state: state() })
+    const applied = document.documentElement.style.getPropertyValue('--panel-max')
+    expect(applied).toBe('300px')
+    expect(Number.isNaN(Number.parseFloat(applied))).toBe(false)
+  })
+
   it('anchors the settings overlay to the viewport, not to an ancestor', () => {
     // `absolute` would tie the overlay's size to the height chain above it, and a
     // broken link there is invisible until someone opens settings on a real
@@ -370,6 +449,9 @@ describe('rendered panel', () => {
       type: 'session.stream',
       event: { sessionId: 'session-1', kind: 'delta', payload: { type: 'chunk', chunk: { type: 'text-delta', text: '正在' } } },
     })
+    // Streaming repaints are coalesced to one per frame, so the DOM catches up on the
+    // frame rather than on the delta.
+    flushAnimationFrames()
     expect(root.querySelector('.msg--streaming .msg__text')?.textContent).toContain('正在')
     expect(root.querySelector('.caret')).not.toBeNull()
 
@@ -389,6 +471,222 @@ describe('rendered panel', () => {
     const replies = [...root.querySelectorAll('.msg--assistant')]
     expect(replies).toHaveLength(1)
     expect(replies[0]?.querySelector('strong')?.textContent).toBe('最终答复')
+  })
+
+  it('does not render Markdown while the reply is still streaming', () => {
+    // Rendering Markdown per delta re-parsed and re-sanitized the whole reply every time,
+    // which is quadratic in the reply length: on a fast stream the panel fell behind and
+    // never caught up, so it looked frozen rather than slow. The fenced block below is
+    // exactly what a Markdown pass would turn into `pre`/`code`, so its absence in the
+    // streaming bubble is the observable form of that guarantee.
+    const { app, root } = mount()
+    app.handleMessage({ type: 'session.event', sessionId: 'session-1', event: { type: 'turn/start' } })
+    app.handleMessage({
+      type: 'session.stream',
+      event: {
+        sessionId: 'session-1',
+        kind: 'delta',
+        payload: { type: 'chunk', chunk: { type: 'text-delta', text: '```js\nconst x = 1\n```\n' } },
+      },
+    })
+    // A second delta so the streaming path has run more than once.
+    app.handleMessage({
+      type: 'session.stream',
+      event: {
+        sessionId: 'session-1',
+        kind: 'delta',
+        payload: { type: 'chunk', chunk: { type: 'text-delta', text: '**粗体**' } },
+      },
+    })
+    flushAnimationFrames()
+
+    const streaming = root.querySelector('.msg--streaming .msg__text')
+    expect(streaming).not.toBeNull()
+    // The text is present and readable, exactly as the model sent it…
+    expect(streaming?.textContent).toContain('const x = 1')
+    expect(streaming?.textContent).toContain('**粗体**')
+    // …and unrendered: no Markdown output at all while streaming.
+    expect(streaming?.querySelector('pre')).toBeNull()
+    expect(streaming?.querySelector('code')).toBeNull()
+    expect(streaming?.querySelector('strong')).toBeNull()
+  })
+
+  it('keeps the streaming branch free of any Markdown call', () => {
+    // The DOM assertion above proves today's behavior. This one guards the shape of the
+    // code, because the regression is a one-line change: putting `renderMarkdown` back into
+    // the streaming branch is exactly how the freeze was introduced, and it would still
+    // pass a test that only looked at what is visible.
+    const source = readFileSync(join(CONTROL_DIR, 'main.ts'), 'utf8')
+    const body = /private assistantBubbleChildren\([^)]*\)[^{]*\{([\s\S]*?)\n {2}\}/.exec(source)?.[1] ?? ''
+    expect(body, 'assistantBubbleChildren source').not.toBe('')
+
+    // The streaming branch must come first and must not call renderMarkdown.
+    const streamingBranch = /if \(streaming\) \{([\s\S]*?)\}/.exec(body)?.[1] ?? ''
+    expect(streamingBranch, 'streaming branch').toContain('text')
+    expect(streamingBranch, 'streaming branch').not.toContain('renderMarkdown')
+
+    // Markdown is still rendered — for the finished reply.
+    expect(body).toContain('renderMarkdown')
+  })
+
+  it('parses Markdown once, when the reply is finished', () => {
+    const { app, root } = mount()
+    app.handleMessage({ type: 'session.event', sessionId: 'session-1', event: { type: 'turn/start' } })
+    for (const text of ['一段', '回答']) {
+      app.handleMessage({
+        type: 'session.stream',
+        event: { sessionId: 'session-1', kind: 'delta', payload: { type: 'chunk', chunk: { type: 'text-delta', text } } },
+      })
+    }
+    flushAnimationFrames()
+    // Still unrendered while streaming.
+    expect(root.querySelector('.msg--streaming strong')).toBeNull()
+
+    // The finished reply is rendered, which is the one place Markdown is wanted.
+    app.handleMessage({
+      type: 'state',
+      state: state({ timeline: [{ id: 'a1', kind: 'assistant', text: '**完成**', state: 'done', at: 3 }] }),
+    })
+    expect(root.querySelector('.msg--assistant strong')?.textContent).toBe('完成')
+  })
+
+  it('treats a durable running reply as streaming, not as finished', () => {
+    // The real app's shape, and the one the earlier tests missed: the worker creates a
+    // durable `assistant` row on the FIRST delta and keeps it `running` for the whole turn,
+    // and that row arrives in `state.timeline`. Treating only the synthetic row as streaming
+    // meant `.msg--streaming` never existed, so every frame rebuilt the whole transcript and
+    // rendered Markdown for a reply that was still being written — the quadratic path the
+    // streaming mode exists to avoid.
+    const { app, root } = mount(state({
+      timeline: [{ id: 'a-live', kind: 'assistant', text: '```js\nconst x = 1\n```', state: 'running', at: 1 }],
+    }))
+    app.handleMessage({ type: 'session.event', sessionId: 'session-1', event: { type: 'turn/start' } })
+    app.handleMessage({
+      type: 'session.stream',
+      event: {
+        sessionId: 'session-1',
+        kind: 'delta',
+        payload: { type: 'chunk', chunk: { type: 'text-delta', text: '\nconst y = 2' } },
+      },
+    })
+    flushAnimationFrames()
+
+    // The running row is the streaming target, and it is rendered as plain text…
+    const streaming = root.querySelector('[data-streaming] .msg__text')
+    expect(streaming).not.toBeNull()
+    expect(streaming?.textContent).toContain('const x = 1')
+    // …not as Markdown, and not as a duplicate row.
+    expect(streaming?.querySelector('pre')).toBeNull()
+    expect(root.querySelectorAll('.msg--assistant')).toHaveLength(1)
+  })
+
+  it('renders the reply as Markdown once the turn ends', () => {
+    // The other half of the same contract: streaming is plain, the finished reply is not.
+    const { app, root } = mount(state({
+      timeline: [{ id: 'a-live', kind: 'assistant', text: '**粗体**', state: 'running', at: 1 }],
+    }))
+    app.handleMessage({ type: 'session.event', sessionId: 'session-1', event: { type: 'turn/start' } })
+    expect(root.querySelector('[data-streaming]')).not.toBeNull()
+
+    // `turn/end` settles the row, so it must stop being the streaming target.
+    app.handleMessage({ type: 'session.event', sessionId: 'session-1', event: { type: 'turn/end' } })
+    app.handleMessage({
+      type: 'state',
+      state: state({ timeline: [{ id: 'a-live', kind: 'assistant', text: '**粗体**', state: 'done', at: 1 }] }),
+    })
+    expect(root.querySelector('[data-streaming]')).toBeNull()
+    expect(root.querySelector('.msg--assistant strong')?.textContent).toBe('粗体')
+  })
+
+  it('recovers when the conversation list request fails outright', async () => {
+    // A dead port rejects `call()` immediately. The loading flag used to be set before the
+    // call and never cleared on that path, so the guard above latched: every later attempt
+    // returned early and the picker stayed on「加载中」for the rest of the panel's life.
+    const port = new StubPort()
+    port.failure = 'background disconnected'
+    const root = document.createElement('div')
+    document.body.append(root)
+    const app = new App(root, 'zh', port.asControlPort(), controlCopy('zh'))
+    app.start()
+    app.handleMessage({ type: 'state', state: state() })
+
+    root.querySelector<HTMLButtonElement>('[aria-label="更改设置"]')!.click()
+    // Choosing "continue a chosen one" is what asks the worker for the list.
+    const conversation = [...root.querySelectorAll<HTMLSelectElement>('select')]
+      .find((select) => [...select.options].some((option) => option.value === 'pinned'))
+    expect(conversation, 'conversation select').not.toBeUndefined()
+    conversation!.value = 'pinned'
+    conversation!.dispatchEvent(new Event('change', { bubbles: true }))
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // The request failed, so a second attempt must be allowed to happen.
+    expect(port.calls.filter((call) => call.type === 'session.list').length).toBe(1)
+    conversation!.dispatchEvent(new Event('change', { bubbles: true }))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(port.calls.filter((call) => call.type === 'session.list').length).toBe(2)
+  })
+
+  it('keeps a cache in the Markdown path, so a rebuild does not re-parse', () => {
+    // A rebuilt transcript re-rendered Markdown for every reply on screen, so an unrelated
+    // update (a tool step, an approval, expanding a row) cost a parse of the whole
+    // conversation. The mapping is pure, so `renderMarkdown` reuses its own result.
+    //
+    // The cache is not observable through the return value — the render is deterministic
+    // either way — so this asserts the shape of the code, the same way the streaming-branch
+    // guard does. Without the lookup, the cost the audit measured comes straight back.
+    const source = readFileSync(join(CONTROL_DIR, 'markdown.ts'), 'utf8')
+    const body = /export function renderMarkdown\([\s\S]*?\n\}/.exec(source)?.[0] ?? ''
+    expect(body, 'renderMarkdown source').not.toBe('')
+    expect(body, 'consults the cache').toContain('rendered.get(text)')
+    expect(body, 'fills the cache').toContain('rendered.set(text,')
+    // Bounded: an unbounded cache over a long session is a leak.
+    expect(source, 'cache is bounded').toMatch(/CACHE_LIMIT\s*=\s*\d+/)
+    expect(body, 'evicts').toContain('rendered.delete(')
+  })
+
+  it('still sanitizes every render, including a cache miss', () => {
+    // The cache sits in front of the sanitizer, so this proves it is a cache and not a
+    // bypass: a hostile string must not survive, whether or not it was seen before.
+    const hostile = '<script>alert(1)</script><img src=x onerror=alert(2)>'
+    const first = renderMarkdown(hostile)
+    const second = renderMarkdown(hostile)
+    expect(first).not.toContain('<script')
+    expect(first).not.toContain('onerror')
+    expect(first).not.toContain('<img')
+    expect(second).toBe(first)
+  })
+
+  it('repaints at most once per frame no matter how many deltas arrive', () => {    // The coalescing is the point: a burst of deltas must not produce a burst of work.
+    // Element creation shows the repaint happening, so ten deltas landing in one frame
+    // should cost a single small repaint rather than ten.
+    const created = vi.spyOn(document, 'createElement')
+    try {
+      const { app, root } = mount()
+      app.handleMessage({ type: 'session.event', sessionId: 'session-1', event: { type: 'turn/start' } })
+      flushAnimationFrames()
+      created.mockClear()
+
+      // One frame's worth of deltas — far more than a display refresh would deliver.
+      for (const text of ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十']) {
+        app.handleMessage({
+          type: 'session.stream',
+          event: { sessionId: 'session-1', kind: 'delta', payload: { type: 'chunk', chunk: { type: 'text-delta', text } } },
+        })
+      }
+      // No frame has run yet, so no repaint has happened.
+      expect(created).not.toHaveBeenCalled()
+
+      flushAnimationFrames()
+      // Ten deltas, one repaint. The exact number of elements is an implementation detail;
+      // that it is a single small repaint rather than ten is the guarantee being locked in.
+      expect(created.mock.calls.length).toBeGreaterThan(0)
+      expect(created.mock.calls.length).toBeLessThan(10)
+      expect(root.querySelector('.msg--streaming .msg__text')?.textContent).toContain('十')
+    } finally {
+      created.mockRestore()
+    }
   })
 
   it('ignores a stream that belongs to another session', () => {

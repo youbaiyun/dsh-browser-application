@@ -66,7 +66,7 @@ https://github.com/youbaiyun/dsh-browser-crossplatform/tree/main/skills/dsh-brow
 需要先装好桌面端 dsh，并让它在同一台机器上运行。没有 dsh 时，侧边栏会
 显示未连接，不会做任何别的事。
 
-浏览器引擎部分来自 Lum1104/dsh-browser（MIT 协议）；侧边栏与交互层是本
+浏览器引擎部分来自 Lum1104/dsh-browser（现更名为 omdsh-dev/dsh-browser，MIT 协议）；侧边栏与交互层是本
 版本自己的实现。
 ```
 
@@ -86,8 +86,7 @@ page itself, with your login intact. No separate browser. No screenshots.
 • Reads the page as structured text with numbered controls, so the model acts on
   the page it was given instead of taking pictures of it.
 • Clicks, types, scrolls, navigates and manages tabs, on the one page you choose.
-• Approval switch. 「不再询问，直接操作」 ships ON, so a new install clicks and types without a per-action prompt; turn it off for approval, per-site trust, or allow-once.
-  or open up the current connection.
+• Approval switch. The "act without asking" switch ships ON, so a new install clicks and types without a per-action prompt; turn it off for approval, per-site trust, or allow-once.
 • Passwords and card numbers never leave the page — replaced before anything is
   sent.
 • A web page cannot impersonate you. What you type in the panel carries an origin
@@ -103,7 +102,7 @@ page itself, with your login intact. No separate browser. No screenshots.
 Requires the dsh desktop app, running on the same machine. Without it the panel
 says it is not connected and does nothing else.
 
-The browser engine comes from Lum1104/dsh-browser (MIT); the side panel and the
+The browser engine comes from Lum1104/dsh-browser (since renamed omdsh-dev/dsh-browser; MIT); the side panel and the
 interaction layer are this build's own.
 ```
 

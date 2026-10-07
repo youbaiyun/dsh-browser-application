@@ -5,6 +5,103 @@ This project is a derivative of
 are listed only where this fork has something to say about them; see
 [COPYRIGHT.md](COPYRIGHT.md) for which files belong to whom.
 
+## [0.38.5]
+
+The panel's layout, its streaming path, and its interactivity under load. No wire-format or
+settings change: a `0.38.4` bridge and a `0.38.5` extension interoperate exactly as before.
+
+### Fixed
+
+- **The side panel could open blank while its header and composer drew normally.** `.app` and
+  `.sheet` are CSS grids that pinned their *row* axis with a deliberate `minmax(0, 1fr)` guard
+  and never pinned their *column* axis. With no `grid-template-columns`, the implicit `auto`
+  column is sized to its items' max-content, so a single long unbreakable tool summary — a URL,
+  or a run of text with no spaces, exactly what a failed `browser_navigate` produces — stretched
+  the column to ~2346px inside a 360px panel. `body { overflow-x: hidden }` then clipped the
+  content off the right edge. Both grids now declare `grid-template-columns: minmax(0, 1fr)`.
+- **The reading cap was written through instead of clamped.** `--panel-max` comes from
+  `settings.readWidth` (default 640), and it was applied verbatim, so a 360px panel laid every
+  text column out 640px wide inside a 360px box — a second, independent way to produce the
+  blank panel above. It is now clamped to the panel's own width, applied *before* the first
+  paint rather than only when the first state push arrived (a panel that never received one kept
+  the stylesheet default of 640), and re-applied by a `ResizeObserver` when the panel is dragged.
+- **A long reply could freeze the panel, because the streaming fast path was never reached.**
+  The worker creates a durable `assistant` row on the first delta and keeps it `running`, and
+  that row arrives in `state.timeline`; the panel only treated its own synthetic row as
+  streaming, so `.msg--streaming` never existed, every repaint fell back to a full transcript
+  rebuild, and the partial reply was rendered as finished Markdown on every frame — the
+  quadratic path the streaming mode exists to avoid. A `running` assistant row is now the
+  streaming target, and the repaint updates that bubble in place.
+- **Streaming rendered Markdown per frame.** While `streaming` is true the reply is plain text
+  again, which is what the README always claimed; Markdown is rendered once, when the turn ends.
+  Repaints are coalesced to one per animation frame.
+- **Every state push destroyed the composer, so typing during a reply was lost.** `turn/start`,
+  `turn/end` and each `state` push called the full `render()`, which replaced the textarea and
+  dropped focus. A 100-round simulation measured 240 lost focus events and 240 swallowed
+  keystrokes in 20 rounds; it now measures zero in 100. Turn boundaries repaint the header,
+  transcript, send/stop button and meta line; state pushes also refresh the settings sheet in
+  place, so its badge updates without rebuilding it.
+- **Sending a prompt or stopping a run also destroyed the composer.** The four paths the reader
+  drives themselves — `runPrompt`, `runCommand`, `runOpen` and `stopRun` — still called the full
+  `render()`. Pressing Enter removed the box the draft was in, and the *next* message was
+  discarded when the worker answered. They repaint in place now.
+- **The send button could stay a stop button after the turn ended.** The turn flag arrives in
+  `state` as well as in `session.event`, and only the event path refreshed the button. A state
+  push now refreshes it too, which also clears a stale "not connected" line from the meta row
+  once the bridge is back.
+- **The conversation picker could latch on 「正在读取…」 with no way out.** `refreshSettingsSheet`
+  skips work when nothing it draws has changed, and its change check omitted the fetched
+  conversation list — so the reply to `session.list` was swallowed, the options were never
+  inserted, and a `<select>` holding only its placeholder never fires `change`. The check now
+  covers the list, its loading flag and the pinned id.
+- **Switching conversation painted the previous one's half-written reply into the new one.**
+  The in-flight reply text was never cleared when `state.session.id` changed, so the abandoned
+  answer kept rendering — with a blinking caret — inside the conversation just opened.
+- **A full repaint always scrolled to the bottom.** `pinnedScroll` was initialised to `true`,
+  read once, and never set back — a constant dressed as state — so all twenty-odd `render()`
+  call sites yanked a reader who had scrolled up. The position is now captured before the rebuild
+  and restored after.
+- **The conversation picker latched on "loading" forever.** `requestSessions()` set
+  `sessionsLoading` before the call and its `catch` did nothing, so a dead port left the guard
+  blocking every retry for the life of the panel. `call()` also had no timeout and `dispose()`
+  never settled in-flight requests, so a lost answer meant a promise that never resolved — and a
+  send button that stayed disabled.
+- **A rebuilt transcript re-parsed Markdown for every reply on screen.** Rendering is pure, so
+  results are cached. The cache is bounded at the timeline's own size (200 entries) and evicts
+  least-recently-used, because a smaller cache misses for half of a long conversation and an
+  insertion-ordered one lets the replies on screen age out first.
+- **Light-mode contrast.** `--text-tertiary` measured 3.71:1 on white and 3.48:1 on `--bg-subtle`
+  while being used as text at 11-13px in a dozen places; it is now 4.93:1.
+- **The conversation picker could not shrink**, so a long desktop conversation title pushed the
+  control past the panel edge where `overflow-x: hidden` clipped it — a dropdown whose arrow was
+  unreachable. `prefers-reduced-motion` also left the caret blinking, because shortening an
+  animation's duration does not stop an `infinite` one.
+- **The settings button could be clipped away in a narrow panel.** The header's action row was
+  `flex: none` and its buttons do not wrap, so with a lost tab binding the row grew past the
+  panel and `overflow-x: hidden` removed its rightmost control — the panel's only route to its
+  own settings. The row shrinks and its text buttons ellipsise.
+- **The half-written-directive hint had no style at all**, so it rendered in the body text colour
+  and read as a statement rather than a reminder.
+
+### Changed
+
+- Streaming updates from the worker to the panel are coalesced to at most one per 50 ms. Each one
+  clones the assistant's whole text and posts it across the port, so notifying per delta was both
+  wasteful and quadratic in the reply length.
+- `benchmark/package.json` is now covered by the version-agreement test. It was the one package a
+  version bump could quietly leave behind.
+
+### Added
+
+- A 100-round panel simulation that drives the panel the way the desktop app does — deltas, state
+  pushes, typing, clicks — and reports per-round outcomes, so an intermittent fault cannot pass as
+  a success.
+- A nine-step user journey that walks one session end to end and asserts at every step that the
+  content is on screen and the controls still respond. It catches the failures that happen
+  *between* steps, which is where every one of the above was found.
+- Regression tests for the grid axes, the reading cap at nine panel widths, the drawing cache, the
+  streaming branch, and the send/stop button.
+
 ## [0.38.4]
 
 This release is the 「工作区内」 feature line in full, plus the pass that made it cheap

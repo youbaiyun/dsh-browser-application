@@ -15,6 +15,16 @@ import type { ActivityEntry, AssistantStreamEvent, ControlState, TimelineEntry }
 /** Rows kept in the timeline; the oldest are dropped once it is full. */
 export const TIMELINE_LIMIT = 200
 
+/**
+ * Shortest gap between two streaming publishes.
+ *
+ * Each publish clones the assistant's whole text and posts it across the port, so at the
+ * rate a fast model streams, doing it per delta is both wasteful and quadratic in the reply
+ * length. 50 ms keeps the text visibly live (20 updates a second is smoother than reading)
+ * while making the cross-process cost depend on elapsed time rather than on delta count.
+ */
+export const STREAM_NOTIFY_MS = 50
+
 /** What the page's rendered view is told whenever the session view changed. */
 export interface ControlSessionSinks {
   /** Called after a change the page should repaint; never called per stream delta. */
@@ -156,6 +166,8 @@ export class ControlSession {
   /** Text streamed since the last commit or baseline. */
   private attemptText = ''
   private assistantRowId: string | null = null
+  /** Pending coalesced streaming publish, or null when none is scheduled. */
+  private streamNotifyTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(private readonly sinks: ControlSessionSinks) {}
 
@@ -364,6 +376,7 @@ export class ControlSession {
     this.pendingPrompt = false
     this.settleAssistantRow('done')
     this.resetTurnText()
+    this.flushStreamNotify()
     this.sinks.changed()
   }
 
@@ -375,6 +388,7 @@ export class ControlSession {
     for (const entry of this.entries) {
       if (entry.kind === 'request' && entry.state === 'pending') entry.state = 'cancelled'
     }
+    this.flushStreamNotify()
     this.sinks.changed()
   }
 
@@ -429,6 +443,9 @@ export class ControlSession {
         // as this step's authoritative text and stop showing the live suffix.
         if (this.committedText.at(-1) !== text) this.committedText.push(text)
         this.attemptText = ''
+        // Drop any coalesced streaming publish: the authoritative row below supersedes it,
+        // and leaving it pending would repaint the same text a moment later.
+        this.flushStreamNotify()
         this.refreshAssistantRow(true)
         return
       }
@@ -530,6 +547,7 @@ export class ControlSession {
         }
         this.entries[index] = { ...current, text }
         if (notify) this.sinks.changed()
+        else this.scheduleStreamNotify()
         return
       }
       // The cap dropped the row; the next update starts a fresh one.
@@ -546,6 +564,32 @@ export class ControlSession {
     }
     this.assistantRowId = entry.id
     this.push(entry)
+    if (notify) this.sinks.changed()
+    else this.scheduleStreamNotify()
+  }
+
+  /**
+   * Publish a streaming update at most once per {@link STREAM_NOTIFY_MS}.
+   *
+   * Each publish clones the whole assistant text and posts it across the port, and a reply
+   * can produce hundreds of deltas per second, so notifying per delta made the cross-process
+   * cost grow with the square of the reply length. Coalescing keeps the row in step while
+   * making that cost linear. A plain timer rather than an animation frame: this runs in the
+   * service worker, where a frame callback is not guaranteed to arrive.
+   */
+  private scheduleStreamNotify(): void {
+    if (this.streamNotifyTimer !== null) return
+    this.streamNotifyTimer = setTimeout(() => {
+      this.streamNotifyTimer = null
+      this.sinks.changed()
+    }, STREAM_NOTIFY_MS)
+  }
+
+  /** Publish any coalesced streaming update right away; used when a turn settles. */
+  private flushStreamNotify(): void {
+    if (this.streamNotifyTimer === null) return
+    clearTimeout(this.streamNotifyTimer)
+    this.streamNotifyTimer = null
     this.sinks.changed()
   }
 

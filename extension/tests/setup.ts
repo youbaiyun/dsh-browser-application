@@ -33,6 +33,44 @@ Object.defineProperty(globalThis, 'CSS', {
 })
 
 /**
+ * A controllable `requestAnimationFrame`.
+ *
+ * The panel coalesces streaming repaints to one per frame, which is what keeps a long reply
+ * from freezing it. jsdom does not implement `requestAnimationFrame` at all, so without a
+ * stub every streaming spec would throw. Rather than making specs async just to wait a
+ * frame, the callbacks are held here and released on demand.
+ *
+ * Nothing runs on its own: a spec that prints must call `flushAnimationFrames()`, which
+ * also makes the coalescing observable — a frame's worth of deltas produces one repaint.
+ */
+export const flushAnimationFrames = (maxRounds = 8): void => {
+  for (let round = 0; round < maxRounds; round++) {
+    const pending = pendingFrames.splice(0, pendingFrames.length)
+    if (pending.length === 0) return
+    for (const callback of pending) callback(0)
+  }
+}
+
+const pendingFrames: Array<(time: number) => void> = []
+
+Object.defineProperty(globalThis, 'requestAnimationFrame', {
+  configurable: true,
+  writable: true,
+  value: (callback: (time: number) => void): number => {
+    pendingFrames.push(callback)
+    return pendingFrames.length
+  },
+})
+
+Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+  configurable: true,
+  writable: true,
+  value: (): void => {
+    pendingFrames.length = 0
+  },
+})
+
+/**
  * No test may reach the network.
  *
  * The background probes loopback ports looking for the bridge, so a spec that
