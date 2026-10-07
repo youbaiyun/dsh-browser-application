@@ -1148,6 +1148,26 @@ const sessionRpc = {
     }),
   cancel: (sessionId: string): Promise<unknown> => gatewayRpc('session.cancel', { sessionId }),
   history: (sessionId: string): Promise<unknown> => gatewayRpc('session.history', { sessionId }),
+  follow: (sessionId: string): Promise<unknown> => gatewayRpc('session.follow', { sessionId }),
+}
+
+/**
+ * Ask the bridge to start streaming one conversation's events to this worker.
+ *
+ * Nothing else opens that stream except sending a prompt, so a panel watching a
+ * conversation the desktop app drives would otherwise see nothing at all: every
+ * event is dropped unless its session matches the panel's binding.
+ *
+ * Best-effort on purpose. A transport that predates `session.follow` answers with
+ * an error; the panel is still correctly bound in that case, it simply will not
+ * update live, and that is not worth failing the user's conversation switch over.
+ */
+async function startFollowingSession(sessionId: string): Promise<void> {
+  try {
+    await sessionRpc.follow(sessionId)
+  } catch (error: unknown) {
+    console.warn('bridge: session.follow failed', error)
+  }
 }
 
 /**
@@ -1323,6 +1343,10 @@ async function promptSession(text: string): Promise<string> {
     // The transcript row keeps the raw text so the panel shows what was typed;
     // the marker is what the model receives.
     await sessionRpc.prompt(sessionId, `${BROWSER_PANEL_MARKER} ${text}`, browserTimeZone())
+    // A prompt already opens the follower on the bridge, so this is belt and
+    // braces — and it runs after the prompt so it can never sit between the
+    // caller and the prompt's own result.
+    void startFollowingSession(sessionId)
     control.admitPrompt(request)
     return sessionId
   } catch (error: unknown) {
@@ -2111,13 +2135,14 @@ chrome.runtime.onConnect.addListener((port) => {
         break
       }
       case 'session.select': {
-        const select = message as { id?: unknown; scope?: unknown; sessionId?: unknown }
+        const select = message as { id?: unknown; scope?: unknown; sessionId?: unknown; follow?: unknown }
         if (typeof select.id !== 'string') break
         const requestId = select.id
         const scope = select.scope === 'pinned' ? 'pinned' : 'fresh'
         const sessionId = typeof select.sessionId === 'string' && select.sessionId.trim() !== ''
           ? select.sessionId.trim()
           : null
+        const follow = select.follow === true
         if (scope === 'pinned' && sessionId === null) {
           replyToPort(port, {
             type: 'session.result',
@@ -2127,12 +2152,18 @@ chrome.runtime.onConnect.addListener((port) => {
           })
           break
         }
-        void selectSessionScope(scope, sessionId).then(
-          () => { replyToPort(port, { type: 'session.result', id: requestId, ok: true }) },
-          (error: unknown) => {
-            replyToPort(port, { type: 'session.result', id: requestId, ok: false, error: errorText(error) })
-          },
-        )
+        void selectSessionScope(scope, sessionId)
+          // Asked for after the binding moved, so the follower streams the
+          // conversation the panel is now showing rather than the previous one.
+          // A follow that fails must not fail the switch: the panel is bound
+          // either way, and only the live updates are missing.
+          .then(() => (follow && sessionId !== null ? startFollowingSession(sessionId) : undefined))
+          .then(
+            () => { replyToPort(port, { type: 'session.result', id: requestId, ok: true }) },
+            (error: unknown) => {
+              replyToPort(port, { type: 'session.result', id: requestId, ok: false, error: errorText(error) })
+            },
+          )
         break
       }
       case 'open.run': {

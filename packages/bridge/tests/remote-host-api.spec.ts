@@ -156,6 +156,22 @@ describe('dsh 0.2 Remote Host adapter', () => {
     await events.return?.()
   })
 
+  it('refuses to follow without a Session, and says so when it cannot follow at all', async () => {
+    // Two refusals worth pinning, because both are silent failures otherwise:
+    // a missing Session must be a bad request rather than an accepted no-op, and
+    // a deployment with no event generation must say that instead of returning a
+    // success that streams nothing.
+    const { api } = harness()
+    await expect(api.call(call('session.follow', {}))).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'bad-request' },
+    })
+    await expect(api.call(call('session.follow', { sessionId: 'session-1' }))).resolves.toMatchObject({
+      ok: false,
+      error: { message: expect.stringContaining('cannot stream') },
+    })
+  })
+
   it('maps unary extension calls to exact Typert namespaces and named args', async () => {
     const { api, invoke } = harness({
       invoke: async ({ namespace, method }) => {

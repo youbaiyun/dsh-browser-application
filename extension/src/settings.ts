@@ -290,8 +290,16 @@ export type ControlRequest =
   | { type: 'session.cancel'; id: string }
   /** Read the desktop's recent conversations, for the panel's session picker. */
   | { type: 'session.list'; id: string }
-  /** Choose which conversation the panel's messages go to. */
-  | { type: 'session.select'; id: string; scope: 'fresh' | 'pinned'; sessionId: string | null }
+  /**
+   * Choose which conversation the panel's messages go to.
+   *
+   * `follow: true` additionally starts streaming that conversation's events to
+   * the panel, which is what lets the panel show a conversation the *desktop app*
+   * is driving: without a prompt from the panel there is nothing that would open
+   * the follower, so the panel would render an empty transcript for a busy
+   * Session.
+   */
+  | { type: 'session.select'; id: string; scope: 'fresh' | 'pinned'; sessionId: string | null; follow?: boolean }
   /** Execute a `browser_*` command the user typed, without involving the desktop app. */
   | { type: 'command.run'; id: string; name: string; args: Record<string, unknown> }
   /**

@@ -61,6 +61,7 @@ class RemoteHostApi implements BrowserHostApi {
     if (call.method === 'session.history') return this.sessionHistory(call)
     if (call.method === 'session.models') return this.sessionModels(call)
     if (call.method === 'workspace.list') return this.workspaceList(call)
+    if (call.method === 'session.follow') return this.sessionFollow(call)
 
     const target = invokeTarget(call)
     if ('error' in target) return { ok: false, error: target.error }
@@ -154,6 +155,40 @@ class RemoteHostApi implements BrowserHostApi {
         : await this.activeEvents.openSessionHistory(sessionId, call.signal, maxMessages)
       this.noteHistoryCursor(sessionId, snapshot.cursor)
       return { ok: true, value: historyValue(snapshot) }
+    } catch (error: unknown) {
+      return { ok: false, error: this.failure(error) }
+    }
+  }
+
+  /**
+   * Start streaming one Session's events to the extension without prompting it.
+   *
+   * `session.prompt` opens the follower as a side effect, which is why a panel
+   * that sends its own prompt sees its own conversation. A panel that is
+   * *watching* a conversation the desktop app drives has no prompt to send, so
+   * without this it receives nothing: the extension's renderer drops every event
+   * whose sessionId is not the one it is bound to, and nothing ever binds it to a
+   * running Session.
+   *
+   * Read-only by construction — it opens the same follower `session.history`
+   * would and returns no Session value — so it cannot change a Session's state or
+   * admit a turn.
+   *
+   * @param call - the Host call; `sessionId` names the Session to follow.
+   * @returns `{ following: true }`, or a bad-request/gateway failure.
+   */
+  private async sessionFollow(call: HostRpcCall): Promise<HostRpcResult> {
+    const sessionId = sessionIdOf(call.payload)
+    if (sessionId === undefined) return badRequest('session.follow requires a non-empty sessionId')
+    if (this.activeEvents === undefined) {
+      return {
+        ok: false,
+        error: this.failure(new Error('this deployment cannot stream Session events')),
+      }
+    }
+    try {
+      await this.activeEvents.ensureSessionFollow(sessionId, call.signal)
+      return { ok: true, value: { following: true } }
     } catch (error: unknown) {
       return { ok: false, error: this.failure(error) }
     }

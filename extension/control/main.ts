@@ -1116,7 +1116,10 @@ export class App {
     }
     picker.addEventListener('change', () => {
       if (picker.value === '') return
-      void this.port.call({ type: 'session.select', id: '', scope: 'pinned', sessionId: picker.value })
+      // `follow` is what makes the panel show a conversation the desktop app is
+      // driving: binding alone renders an empty transcript, because the worker
+      // drops any event whose Session is not the one it is bound to.
+      void this.port.call({ type: 'session.select', id: '', scope: 'pinned', sessionId: picker.value, follow: true })
     })
     row.append(el('div', { className: 'setting__actions', children: [picker] }))
     return row
