@@ -15,10 +15,11 @@
  * @module
  */
 
+import { existsSync } from 'node:fs'
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool, type ParameterSchemaSpec, type ToolDefinition, type ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { BridgeServer } from './server.ts'
-import { launchBrowser, type LaunchDeps, type LaunchOutcome } from './browser-launch.ts'
+import { detectBrowsers, launchBrowser, type LaunchDeps, type LaunchOutcome } from './browser-launch.ts'
 
 /** Options resolved from plugin config before tool registration. */
 export interface BrowserToolsOptions {
@@ -307,13 +308,19 @@ export function registerBrowserTools(
     : { ...launcher, waitForConnection: launcher.waitForConnection ?? waitForConnection }
 
   /**
-   * Start the browser when the extension is not connected.
+   * Start the browser when it is not connected, or when it is connected but has no
+   * window left to operate.
    *
    * Returns the launcher's outcome, or a message explaining why nothing was
    * started — every branch ends in text the model can repeat to the user, because
    * "the browser is closed" is not a failure it can recover from by retrying.
+   *
+   * @param url - a page to open in the launched browser.
+   * @param windowless - true only when the caller has *established* that the running
+   *   browser has no visible window, which is what permits a launch past the
+   *   "already connected" early return.
    */
-  const tryLaunch = async (url?: string): Promise<LaunchOutcome> => {
+  const tryLaunch = async (url?: string, windowless = false): Promise<LaunchOutcome> => {
     if (launcherDeps === undefined) {
       return {
         launched: false,
@@ -328,11 +335,34 @@ export function registerBrowserTools(
         launched: false,
         resolved: true,
         connected: false,
-        message: 'No browser extension is connected. Opening the user\'s browser is switched off '
-          + '(openPagesForUser), so ask the user to start it instead — the extension connects on its own.',
+        message: windowless
+          ? 'The browser is running with no window open. Opening it is switched off (openPagesForUser), so ask the user to open a window.'
+          : 'No browser extension is connected. Opening the user\'s browser is switched off '
+            + '(openPagesForUser), so ask the user to start it instead — the extension connects on its own.',
       }
     }
-    return await launchBrowser(launcherDeps, () => bridge.hasConnection(), url)
+    return await launchBrowser(launcherDeps, () => bridge.hasConnection(), url, windowless)
+  }
+
+  /**
+   * Whether the running browser has a visible window: true, false, or undefined when
+   * this platform cannot be asked.
+   *
+   * Wrapped rather than called directly so that a probe which throws — a missing
+   * shell, a sandbox that refuses to spawn one — degrades to "unknown" instead of
+   * failing the tool. An unavailable answer must never read as "no window".
+   */
+  const launcherReportsNoWindow = async (): Promise<boolean | undefined> => {
+    const deps = launcherDeps
+    const probe = deps?.visibleWindow
+    if (deps === undefined || probe === undefined) return undefined
+    try {
+      const platform = deps.platform ?? process.platform
+      const env = deps.env ?? process.env
+      return await probe(detectBrowsers(platform, env, deps.exists ?? existsSync))
+    } catch {
+      return undefined
+    }
   }
 
   /**
@@ -358,7 +388,16 @@ export function registerBrowserTools(
       const requested = args.url
       const url = typeof requested === 'string' ? requested : undefined
       if (bridge.hasConnection()) {
-        return { text: 'The browser is already running and connected. Call browser_snapshot to see the page.' }
+        // Connected is not the same as usable. A Chromium process outlives its last
+        // window, and the extension holds its socket open while it does, so this tool
+        // used to answer "already running" to someone looking at no browser at all —
+        // and every page tool would then fail with "no active tab". Only a definite
+        // "no window" is acted on; an unanswerable platform keeps the old behaviour
+        // rather than opening a window nobody asked for.
+        if (await launcherReportsNoWindow() !== false) {
+          return { text: 'The browser is already running and connected. Call browser_snapshot to see the page.' }
+        }
+        return { text: await unavailableText(await tryLaunch(url, true)) }
       }
       return { text: await unavailableText(await tryLaunch(url)) }
     }

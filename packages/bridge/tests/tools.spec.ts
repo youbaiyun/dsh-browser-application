@@ -196,6 +196,48 @@ describe('registerBrowserTools', () => {
     expect(result).toEqual({ text: expect.stringContaining('already running') })
   })
 
+  it('does not open a window it cannot prove is missing', async () => {
+    // The probe answers undefined on a platform we cannot ask; a launch then would
+    // open a window nobody requested, so "already running" stays the answer.
+    const { ctx, bridge, registered } = makeHarness()
+    const spawn = vi.fn()
+    registerBrowserTools(ctx, bridge, {
+      ...OPTIONS,
+      launcher: { visibleWindow: async () => undefined, spawnDetached: spawn, exists: () => true },
+    })
+    const tool = registered.find((r) => r.name === 'browser_launch')!
+    const result = await (tool.definition.execute as (args: unknown, e: { signal: AbortSignal }) => Promise<unknown>)({}, { signal: new AbortController().signal })
+    expect(spawn).not.toHaveBeenCalled()
+    expect(result).toEqual({ text: expect.stringContaining('already running') })
+  })
+
+  it('launches when the connected browser has no window left, instead of claiming it is running', async () => {
+    // A Chromium process outlives its last window and the extension keeps its socket
+    // open, so "connected" was reported as "already running" to someone looking at no
+    // browser — and every page tool then failed with "no active tab". With a definite
+    // "no window", asking the browser to start again is what brings one back.
+    const { ctx, bridge, registered } = makeHarness()
+    const spawn = vi.fn()
+    registerBrowserTools(ctx, bridge, {
+      ...OPTIONS,
+      launcher: {
+        visibleWindow: async () => false,
+        spawnDetached: spawn,
+        exists: () => true,
+        // Nothing already running from the launcher's point of view: it is the
+        // window that is gone, and asking a resident process to start again is the
+        // only way to get one back.
+        probeRunning: async () => [],
+        waitForConnection: async () => true,
+      },
+    })
+    const tool = registered.find((r) => r.name === 'browser_launch')!
+    const result = await (tool.definition.execute as (args: unknown, e: { signal: AbortSignal }) => Promise<unknown>)({}, { signal: new AbortController().signal })
+    expect(spawn).toHaveBeenCalledTimes(1)
+    // And the answer is not the "already running" line this case used to produce.
+    expect(JSON.stringify(result)).not.toContain('already running')
+  })
+
   it('turns a lost connection into instructions instead of a transport error', async () => {
     // The point of the preflight: with no launcher configured, a model that calls
     // browser_snapshot on a closed browser must get something it can act on.

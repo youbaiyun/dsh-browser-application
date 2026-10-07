@@ -105,6 +105,15 @@ export interface LaunchDeps {
   platform?: NodeJS.Platform
   /** Injected for tests; defaults to `process.env`. */
   env?: NodeJS.ProcessEnv
+  /**
+   * Injected for tests: whether the running browser has a visible window.
+   *
+   * A Chromium process outlives its windows — closing the last window can leave the
+   * process resident, and the extension keeps its socket open — so "connected" and
+   * "there is a window to act on" are different questions. Only a definite `false`
+   * is acted on; `undefined` means this platform could not be asked.
+   */
+  visibleWindow?: (candidates: readonly BrowserCandidate[]) => Promise<boolean | undefined>
 }
 
 /** A live browser process, as far as the probe can tell. */
@@ -566,6 +575,106 @@ const WIN_GET_CIM = 'Get-CimInstance Win32_Process | ForEach-Object { "$($_.Name
 /** Fallback for hosts with the older cmdlet only. */
 const WIN_GET_WMI = 'Get-WmiObject Win32_Process | ForEach-Object { "$($_.Name)|$($_.CommandLine)" }'
 
+/**
+ * PowerShell: how many visible top-level windows each browser process owns.
+ *
+ * `MainWindowHandle` is 0 for a process that has no window, which is exactly the
+ * state this exists to detect. Emitted as `name=count` so one shell call answers for
+ * every browser at once, and a process name with no windows is reported as `0`
+ * rather than omitted.
+ */
+const WIN_WINDOW_COUNTS = [
+  'Get-Process -Name chrome,msedge,brave,chromium -ErrorAction SilentlyContinue |',
+  'Group-Object ProcessName |',
+  'ForEach-Object { $withWindow = ($_.Group | Where-Object { $_.MainWindowHandle -ne 0 }).Count;',
+  'Write-Output "$($_.Name)=$withWindow" }',
+].join(' ')
+
+/** AppleScript: the number of windows the named app has open. */
+function macWindowCountScript(appName: string): string {
+  return `tell application "System Events" to if exists process "${appName}" `
+    + `then return count of windows of process "${appName}" else return -1`
+}
+
+/**
+ * Whether a running browser has a visible window, or `undefined` when unknown.
+ *
+ * A Chromium process outlives its windows: closing the last window can leave the
+ * process resident while the extension keeps its socket open, so the bridge sees a
+ * healthy connection and every page tool then fails with "no active tab". Asking the
+ * window manager is the only way to tell that state apart from a browser that is
+ * genuinely usable — and `undefined` is a real answer, meaning this platform could
+ * not be asked, so callers must not treat it as "no window".
+ *
+ * @param platform - the platform whose window manager to ask.
+ * @param candidates - the browsers to look for.
+ * @param run - the command runner; injected by tests so the parsing and the
+ *   branch it drives are checked without starting a shell.
+ * @returns true (a window exists), false (running without one), or undefined.
+ */
+export async function hasVisibleBrowserWindow(
+  platform: NodeJS.Platform,
+  candidates: readonly BrowserCandidate[],
+  run: (command: string, args: readonly string[]) => Promise<string | undefined> = defaultRunOnce,
+): Promise<boolean | undefined> {
+  const windowExecutables = candidateExecutables(candidates, platform)
+  if (windowExecutables.length === 0) return undefined
+
+  if (platform === 'win32') {
+    const stdout = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', WIN_WINDOW_COUNTS])
+    if (stdout === undefined) return undefined
+    let sawBrowser = false
+    for (const line of stdout.split(/\r?\n/u)) {
+      const match = /^([^=]+)=(\d+)\s*$/u.exec(line.trim())
+      if (match === null) continue
+      sawBrowser = true
+      if (Number(match[2]) > 0) return true
+    }
+    // Every browser process reported no window. Only a real answer is acted on.
+    return sawBrowser ? false : undefined
+  }
+
+  if (platform === 'darwin') {
+    let sawBrowser = false
+    for (const appName of windowExecutables) {
+      const stdout = await run('osascript', ['-e', macWindowCountScript(appName)])
+      if (stdout === undefined) continue
+      const count = Number(stdout.trim())
+      if (!Number.isFinite(count)) continue
+      if (count > 0) return true
+      if (count === 0) sawBrowser = true
+    }
+    return sawBrowser ? false : undefined
+  }
+
+  // Linux has as many window managers as distributions; guessing would risk
+  // launching a browser the user did not ask for, so this answer is withheld.
+  return undefined
+}
+
+/** The real command runner; `runOnce` needs an `execFile` it does not have yet. */
+async function defaultRunOnce(command: string, args: readonly string[]): Promise<string | undefined> {
+  const { execFile } = await import('node:child_process')
+  return await runOnce(execFile, command, args)
+}
+
+/** The candidate app/process names to ask the window manager about. */
+function candidateExecutables(candidates: readonly BrowserCandidate[], platform: NodeJS.Platform): string[] {
+  const names: string[] = []
+  for (const candidate of candidates) {
+    const file = candidate.path.replaceAll('/', '\\').split('\\').pop() ?? ''
+    const stem = file.replace(/\.exe$/iu, '')
+    if (stem === '') continue
+    // macOS names the application bundle, not the process; the mapping is fixed and
+    // short, and an unknown bundle is simply skipped.
+    const name = platform === 'darwin'
+      ? ({ chrome: 'Google Chrome', chromium: 'Chromium', msedge: 'Microsoft Edge', brave: 'Brave Browser' } as Record<string, string>)[stem.toLowerCase()]
+      : stem
+    if (name !== undefined && !names.includes(name)) names.push(name)
+  }
+  return names
+}
+
 function runOnce(
   execFile: typeof import('node:child_process').execFile,
   command: string,
@@ -627,19 +736,25 @@ export function parsePs(stdout: string): { name: string; commandLine: string }[]
  *
  * The order matters: an already-connected extension means the browser is running
  * and there is nothing to do, so a launch is never started while a working
- * connection exists.
+ * connection exists — **unless the caller has established that the running browser
+ * has no window left**. A Chromium process outlives its last window and the
+ * extension keeps its socket open while it does, so a live connection is not proof
+ * that there is anything to operate; `ignoreConnected` is how that case gets past
+ * this early return and asks the resident process for a window.
  *
  * @param deps - resolved configuration and injectable effects.
  * @param connected - whether the bridge currently has an authenticated extension.
  * @param url - optional page to open in the launched browser.
+ * @param ignoreConnected - start anyway, for the known windowless case above.
  * @returns what happened, in words that name the next step.
  */
 export async function launchBrowser(
   deps: LaunchDeps,
   connected: () => boolean,
   url?: string,
+  ignoreConnected = false,
 ): Promise<LaunchOutcome> {
-  if (connected()) {
+  if (!ignoreConnected && connected()) {
     return { launched: false, resolved: true, connected: true, message: 'The browser is already running and connected; nothing to launch.' }
   }
 

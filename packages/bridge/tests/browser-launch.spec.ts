@@ -9,10 +9,12 @@ import {
   defaultBrowserExecutable,
   detectBrowsers,
   extensionsPageUrl,
+  hasVisibleBrowserWindow,
   launchBrowser,
   probeRunningBrowsers,
   userDataRoots,
   webUrlOrUndefined,
+  type BrowserCandidate,
   type LaunchDeps,
 } from '../src/browser-launch.ts'
 import { resolveExtensionPath } from '../src/index.ts'
@@ -459,5 +461,44 @@ describe('resolveExtensionPath', () => {
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
+  })
+})
+
+describe('hasVisibleBrowserWindow', () => {
+  const chrome: BrowserCandidate[] = [{ id: 'chrome', path: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', exists: true }]
+
+  it('reads a window count out of the one shell call, per browser', async () => {
+    // "chrome=2" means two Chrome processes own a window; the answer is yes without
+    // asking about the others.
+    const stdout = 'chrome=2\r\nmsedge=0\r\n'
+    await expect(hasVisibleBrowserWindow('win32', chrome, async () => stdout)).resolves.toBe(true)
+  })
+
+  it('reports a running browser with no window as false, which is what makes a launch happen', async () => {
+    // A Chromium process outlives its last window, and the extension keeps its socket
+    // open while it does — so "connected" said nothing about whether there was a page
+    // to act on. This is the state the bridge now acts on.
+    await expect(hasVisibleBrowserWindow('win32', chrome, async () => 'chrome=0\r\nmsedge=0\r\n')).resolves.toBe(false)
+  })
+
+  it('withholds an answer it cannot stand behind, rather than guessing', async () => {
+    // Nothing recognised in the output, a shell that did not run, and a platform
+    // whose window manager we do not drive: all three must be "unknown", because a
+    // false here opens a browser window the user did not ask for.
+    await expect(hasVisibleBrowserWindow('win32', chrome, async () => 'unexpected output')).resolves.toBeUndefined()
+    await expect(hasVisibleBrowserWindow('win32', chrome, async () => undefined)).resolves.toBeUndefined()
+    await expect(hasVisibleBrowserWindow('linux', chrome, async () => 'chrome=1')).resolves.toBeUndefined()
+    await expect(hasVisibleBrowserWindow('win32', [], async () => 'chrome=1')).resolves.toBeUndefined()
+  })
+
+  it('asks macOS for the app by name, and accepts the first window it finds', async () => {
+    const asked: string[] = []
+    const run = async (_command: string, args: readonly string[]): Promise<string> => {
+      asked.push(args.join(' '))
+      return '1'
+    }
+    await expect(hasVisibleBrowserWindow('darwin', chrome, run)).resolves.toBe(true)
+    // The bundle name, not the executable name: that is what System Events knows.
+    expect(asked[0]).toContain('Google Chrome')
   })
 })

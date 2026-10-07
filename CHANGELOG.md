@@ -39,6 +39,24 @@ are listed only where this fork has something to say about them; see
 
 ### Fixed
 
+- **`browser_launch` claimed a windowless browser was running.** A Chromium process
+  outlives its last window — closing the window can leave the process resident, and
+  the extension keeps its socket open while it does — so "a connection exists" said
+  nothing about whether there was a page to act on. The tool answered "already
+  running and connected; call browser_snapshot" to someone looking at no browser at
+  all, and every page tool then failed with "no active tab". `launchBrowser` had the
+  same blind spot in its own early return, so the tool could not have got past it
+  even if it had tried.
+  - The bridge now asks the window manager (PowerShell `MainWindowHandle` on Windows,
+    System Events on macOS) how many windows the running browsers own, and only acts
+    on a **definite** "none". An answer it cannot get — an unsupported platform, a
+    shell that will not run — keeps the old behaviour, because a wrong `false` opens a
+    browser window the user did not ask for. A probe that throws degrades to the same
+    "unknown".
+  - With a definite zero, the launch runs in a new `windowless` mode that gets past
+    `launchBrowser`'s connected early return, so the resident process is asked to open
+    a window — which is also what brings the extension back.
+
 - **Nothing in the code changed for `0.38.2`; this release carries its first real
   change since it was published.** Two documentation corrections that landed after
   the `0.38.2` archive was built are, as a result, not in the published package's own

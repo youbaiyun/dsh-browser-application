@@ -30,7 +30,7 @@ import type { WebRoute, WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import { BridgeServer } from './server.ts'
 import { BrowserContextInjector } from './browser-context.ts'
-import { openExtensionsPage } from './browser-launch.ts'
+import { hasVisibleBrowserWindow, openExtensionsPage } from './browser-launch.ts'
 import { ImageRelay } from './image-relay.ts'
 import { THINKING_LOW, THINKING_OFF, VISION_MODEL } from '@dsh-browser/protocol'
 import { VisionClient } from './vision.ts'
@@ -679,6 +679,12 @@ function mountBridge(
         ...(resolved.browserLaunchArgs.length === 0 ? {} : { extraArgs: resolved.browserLaunchArgs }),
         ...(resolved.browserHeadless ? { headless: true } : {}),
         timeoutMs: resolved.browserLaunchTimeoutMs,
+        // Asked only when a browser is already connected, to tell "there is a window
+        // to act on" from "the process outlived its last window". Left out in a
+        // headless deployment, where a visible window is not the question being asked.
+        ...(resolved.browserHeadless
+          ? {}
+          : { visibleWindow: (candidates: Parameters<typeof hasVisibleBrowserWindow>[1]) => hasVisibleBrowserWindow(process.platform, candidates) }),
       },
       // Put the user in front of the extensions page when that is the only way
       // forward: being told "install it" with no destination is the dead end this
