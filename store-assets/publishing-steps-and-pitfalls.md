@@ -135,6 +135,14 @@ Notes specific to Firefox:
   changing it later means a new listing, so confirm it before the first upload.
 - Firefox declares `strict_min_version: 140.0`. The sidebar and
   `storage.session` this build uses need it.
+- **The AMO compatibility range must be set by hand on every submission.** The form
+  opens with its own default — observed as `0.3` for the minimum — and does not pick up
+  the manifest's `strict_min_version`. Left alone it declares the add-on usable on
+  Firefox 0.3, which is false, and the listing shows it. Set the **lower** dropdown to
+  `140.0` and the **upper** one to `*` (the manifest declares no `strict_max_version`,
+  so there is no ceiling). Note which box is which: the range reads
+  `minimum — maximum`, and the first attempt at this corrected the maximum instead,
+  producing "Firefox 0.3 to 140.0" — which excludes every current release.
 - The manifest carries no `sidePanel` permission, which is correct: Firefox has
   no such API and uses `sidebar_action` instead.
 - Firefox always presents the bridge's bearer token: its Origin is
