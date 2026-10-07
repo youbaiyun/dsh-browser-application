@@ -510,12 +510,17 @@ describe('dsh 0.2 Remote Host adapter', () => {
     })
   })
 
-  it('drops buffered events from a session follower after it is replaced', async () => {
-    let releaseStale!: () => void
-    let releaseFresh!: () => void
-    let staleClosed = false
-    const staleGate = new Promise<void>((resolve) => { releaseStale = resolve })
-    const freshGate = new Promise<void>((resolve) => { releaseFresh = resolve })
+  it('follows several Sessions at once, as whole-workspace mirroring needs', async () => {
+    // One follower per Session, not one per connection. With a single slot, asking to
+    // follow a second conversation aborted the first - so 「工作区内」, which follows a
+    // whole workspace, ended up streaming exactly one conversation out of many while
+    // the panel looked like it was working.
+    let releaseA!: () => void
+    let releaseB!: () => void
+    let aClosed = false
+    const gateA = new Promise<void>((resolve) => { releaseA = resolve })
+    const gateB = new Promise<void>((resolve) => { releaseB = resolve })
+    const opened: string[] = []
     const { api } = harness({
       open: async (endpoint, payload, _uplink, _peer, signal) => {
         if (endpoint === '$events') {
@@ -530,21 +535,22 @@ describe('dsh 0.2 Remote Host adapter', () => {
         const sessionId = (payload as {
           args: { request: { address: { sessionId: string } } }
         }).args.request.address.sessionId
-        const stale = sessionId === 'session-old'
+        opened.push(sessionId)
+        const first = sessionId === 'session-a'
         return {
           async *[Symbol.asyncIterator]() {
             try {
               yield { type: 'snapshot', cursor: -1, records: [], hasMore: false }
-              // Deliberately ignore abort while this read is pending: some
-              // iterators can still release one buffered frame after abort.
-              await (stale ? staleGate : freshGate)
+              // Held open deliberately: whether the other Session survives must not
+              // depend on this one having finished.
+              await (first ? gateA : gateB)
               yield {
                 type: 'event',
-                event: { type: 'turn/start', seq: stale ? 1 : 2, time: 3, data: {} },
+                event: { type: 'turn/start', seq: first ? 1 : 2, time: 3, data: {} },
               }
               await abortWait(signal)
             } finally {
-              if (stale) staleClosed = true
+              if (first) aClosed = true
             }
           },
         }
@@ -552,32 +558,41 @@ describe('dsh 0.2 Remote Host adapter', () => {
     })
     const abort = new AbortController()
     const events = api.events(abort.signal)[Symbol.asyncIterator]()
-    const nextEvent = events.next()
+    const seen: unknown[] = []
+    const pump = (async () => {
+      for (;;) {
+        const next = await events.next()
+        if (next.done) return
+        seen.push(next.value)
+      }
+    })()
 
-    await expect(api.call(call('session.history', { sessionId: 'session-old' })))
-      .resolves.toMatchObject({ ok: true })
-    await expect(api.call(call('session.history', { sessionId: 'session-new' })))
-      .resolves.toMatchObject({ ok: true })
+    await expect(api.call(call('session.follow', { sessionId: 'session-a' }))).resolves.toMatchObject({ ok: true })
+    await expect(api.call(call('session.follow', { sessionId: 'session-b' }))).resolves.toMatchObject({ ok: true })
 
-    releaseStale()
-    await vi.waitFor(() => { expect(staleClosed).toBe(true) })
-    releaseFresh()
-    await expect(nextEvent).resolves.toEqual({
-      done: false,
-      value: expect.objectContaining({
-        method: 'session/event',
-        payload: {
-          type: 'session/event',
-          sessionId: 'session-new',
-          event: { type: 'turn/start', seq: 2, time: 3, data: {} },
-        },
-      }),
+    // Both were opened, and following the second did not close the first.
+    expect(opened).toEqual(['session-a', 'session-b'])
+    expect(aClosed).toBe(false)
+
+    // Re-asking for a Session already followed does not reopen it: the extension asks
+    // on every refresh tick.
+    await expect(api.call(call('session.follow', { sessionId: 'session-a' }))).resolves.toMatchObject({ ok: true })
+    expect(opened).toEqual(['session-a', 'session-b'])
+
+    // And each one's events arrive, so neither stream was left behind.
+    releaseA()
+    releaseB()
+    await vi.waitFor(() => {
+      const ids = seen
+        .filter((frame) => (frame as { method?: string }).method === 'session/event')
+        .map((frame) => (frame as { payload: { sessionId: string } }).payload.sessionId)
+      expect(new Set(ids)).toEqual(new Set(['session-a', 'session-b']))
     })
 
     abort.abort()
     await events.return?.()
+    await pump
   })
-
   it('reads workspace.list from the workspace/follow baseline', async () => {
     const { api, open } = harness({
       open: async (endpoint) => ({

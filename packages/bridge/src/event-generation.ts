@@ -17,6 +17,17 @@ interface PendingQuestion {
   settled: boolean
 }
 
+/**
+ * One Session being read on this connection.
+ *
+ * Its own abort controller is what makes the followers independent: stopping one — a
+ * conversation leaving the mirrored set, or being replaced — must not disturb the
+ * others. Nothing here is shared, deliberately.
+ */
+interface SessionFollower {
+  readonly controller: AbortController
+}
+
 export type SendRemoteEventResult = (
   clientId: string,
   eventId: string,
@@ -37,7 +48,7 @@ export type RemoteEventOutcome =
     }
   }
 
-/** One authenticated extension connection's event streams and active Session follower. */
+/** One authenticated extension connection's event streams and its Session followers. */
 export class EventGeneration {
   private readonly lifetime = new AbortController()
   private readonly signal: AbortSignal
@@ -45,9 +56,14 @@ export class EventGeneration {
   private readonly tasks = new Set<Promise<void>>()
   private readonly pendingQuestions = new Map<string, PendingQuestion>()
   private clientId: string | undefined
-  private followAbort: AbortController | undefined
-  private followedSessionId: string | undefined
-  private followRevision = 0
+  /**
+   * One follower per Session, keyed by Session id.
+   *
+   * A map rather than a single slot: 「工作区内」 mirrors a whole workspace, and with one
+   * slot each follow aborted the one before it — so nineteen conversations produced one
+   * live stream and eighteen silent ones.
+   */
+  private readonly followers = new Map<string, SessionFollower>()
   private disposed = false
 
   constructor(
@@ -76,9 +92,43 @@ export class EventGeneration {
     return this.openSessionFollow(sessionId, callSignal, maxMessages)
   }
 
+  /**
+   * Follow one Session, opening its stream if this connection is not already reading it.
+   *
+   * One follower **per Session**, not one follower per connection. A single slot was
+   * enough while the panel mirrored exactly one conversation, but 「工作区内」 mirrors a
+   * whole workspace: with a single slot each `session.follow` aborted the previous
+   * follower, so asking for nineteen conversations left exactly one streaming and the
+   * panel silently showed one conversation out of nineteen.
+   *
+   * Idempotent for the same Session, so a caller may ask repeatedly — the extension
+   * does, on every refresh tick.
+   *
+   * @param sessionId - the Session to read.
+   * @param callSignal - the caller's cancellation.
+   */
   async ensureSessionFollow(sessionId: string, callSignal: AbortSignal): Promise<void> {
-    if (this.followedSessionId === sessionId && this.followAbort?.signal.aborted === false) return
+    const existing = this.followers.get(sessionId)
+    if (existing !== undefined && existing.controller.signal.aborted === false) return
     await this.openSessionFollow(sessionId, callSignal)
+  }
+
+  /**
+   * Stop following the Sessions that are not in the given set.
+   *
+   * Called when the mirrored set shrinks — a conversation left the workspace, or the
+   * user switched back to a single-conversation mode — so the bridge stops reading
+   * Sessions nobody is looking at, instead of streaming them for the connection's
+   * lifetime.
+   *
+   * @param keep - Sessions to keep following.
+   */
+  retainSessionFollows(keep: ReadonlySet<string>): void {
+    for (const [sessionId, follower] of [...this.followers]) {
+      if (keep.has(sessionId)) continue
+      this.followers.delete(sessionId)
+      follower.controller.abort(new Error('browser bridge Session follower no longer watched'))
+    }
   }
 
   async respond(rpcId: string, result: RespondResult, signal: AbortSignal): Promise<unknown> {
@@ -100,7 +150,10 @@ export class EventGeneration {
   async dispose(): Promise<void> {
     if (this.disposed) return
     this.disposed = true
-    this.followAbort?.abort(new Error('browser bridge event generation closed'))
+    for (const follower of this.followers.values()) {
+      follower.controller.abort(new Error('browser bridge event generation closed'))
+    }
+    this.followers.clear()
     this.lifetime.abort(new Error('browser bridge event generation closed'))
     this.queue.end()
     await Promise.all(this.tasks)
@@ -111,12 +164,15 @@ export class EventGeneration {
     callSignal: AbortSignal,
     maxMessages?: number,
   ): Promise<SessionSnapshot> {
-    const revision = ++this.followRevision
-    this.followAbort?.abort(new Error('browser bridge Session follower replaced'))
+    // Replaces any existing follower *for this Session only*. Every other Session keeps
+    // streaming, which is what makes a whole-workspace mirror possible.
+    this.followers.get(sessionId)?.controller.abort(new Error('browser bridge Session follower reopened'))
     const controller = new AbortController()
-    this.followAbort = controller
-    this.followedSessionId = sessionId
+    const follower: SessionFollower = { controller }
+    this.followers.set(sessionId, follower)
     const signal = AbortSignal.any([this.signal, callSignal, controller.signal])
+    /** Whether this follower is still the Session's current one. */
+    const current = (): boolean => this.followers.get(sessionId) === follower
     try {
       const source = await openWireStream(this.gateway,
         'session/follow',
@@ -137,7 +193,7 @@ export class EventGeneration {
         await iterator.return?.()
         throw new TypeError('session/follow did not begin with a snapshot')
       }
-      if (revision !== this.followRevision || signal.aborted) {
+      if (!current() || signal.aborted) {
         await iterator.return?.()
         signal.throwIfAborted()
         throw new Error('browser bridge Session follower was replaced while opening')
@@ -158,7 +214,7 @@ export class EventGeneration {
           },
         })
       }
-      this.track(this.pumpSessionEvents(sessionId, revision, iterator, signal))
+      this.track(this.pumpSessionEvents(sessionId, follower, iterator, signal))
       return {
         cursor: first.value.cursor,
         records: first.value.records,
@@ -168,27 +224,35 @@ export class EventGeneration {
         ...(snapshotId === undefined ? {} : { snapshotId }),
       }
     } catch (error: unknown) {
-      if (revision === this.followRevision) {
-        this.followedSessionId = undefined
-        this.followAbort = undefined
-      }
+      // Only this Session's entry, and only if it is still ours: a follower that was
+      // replaced by a newer one must not remove its successor's registration.
+      if (current()) this.followers.delete(sessionId)
       throw error
     }
   }
 
   private async pumpSessionEvents(
     sessionId: string,
-    revision: number,
+    follower: SessionFollower,
     iterator: AsyncIterator<unknown>,
     signal: AbortSignal,
   ): Promise<void> {
+    /**
+     * Whether this follower is still the Session's current one.
+     *
+     * Answered from the follower itself, never from a counter shared by the whole
+     * connection. A shared counter made every other Session look replaced the moment a
+     * new one was followed, so a workspace mirror kept exactly one stream alive — the
+     * same failure as the single abort slot, reached a different way.
+     */
+    const current = (): boolean => this.followers.get(sessionId) === follower
     try {
       while (!signal.aborted) {
         const next = await iterator.next()
-        // Abort is advisory to an AsyncIterator: a buffered frame may still
-        // resolve after this follower was replaced. Never let that stale
-        // generation update the extension's active/recent session state.
-        if (signal.aborted || revision !== this.followRevision) break
+        // Abort is advisory to an AsyncIterator: a buffered frame may still resolve
+        // after this follower was replaced. Never let that superseded stream update the
+        // extension's state for a Session someone else is now reading.
+        if (signal.aborted || !current()) break
         if (next.done) break
         if (isRecord(next.value) && next.value.type === 'assistant-stream' && isRecord(next.value.frame)) {
           this.queue.push({
@@ -209,17 +273,16 @@ export class EventGeneration {
           payload: { type: 'session/event', sessionId, event: next.value.event },
         })
       }
-      if (!signal.aborted && revision === this.followRevision) {
+      if (!signal.aborted && current()) {
         throw new Error('session/follow ended unexpectedly')
       }
     } catch (error: unknown) {
-      if (!signal.aborted && revision === this.followRevision) this.queue.fail(error)
+      // A stream that was deliberately stopped — replaced, or no longer watched — must
+      // not fail the connection's queue: the abort is the expected outcome, not a fault.
+      if (!signal.aborted && current()) this.queue.fail(error)
     } finally {
       await iterator.return?.()
-      if (revision === this.followRevision) {
-        this.followedSessionId = undefined
-        this.followAbort = undefined
-      }
+      if (current()) this.followers.delete(sessionId)
     }
   }
 

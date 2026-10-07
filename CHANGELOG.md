@@ -76,6 +76,16 @@ are listed only where this fork has something to say about them; see
     feature and is deliberately not part of this.
   - Also fixed on the way: switching to any other mode stops the mirror, and a lost
     connection stops the refresh timer rather than failing every ten seconds.
+  - **The bridge had to change for this to be possible at all, and that is the part
+    worth reading.** It kept a single Session follower per connection, and opening a
+    new one aborted the previous — so asking for nineteen conversations left exactly
+    one streaming while the panel looked like it was working. Followers are now kept
+    per Session, with each one's own abort controller and its own notion of being
+    current; the shared generation counter that decided "am I still wanted?" is gone
+    too, because a counter shared by the whole connection made every other Session look
+    replaced the moment a new one was followed — the same failure reached a different
+    way. Re-asking for a Session already followed is a no-op, which matters because the
+    extension asks on every refresh tick.
 
 ### Fixed
 
