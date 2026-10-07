@@ -142,6 +142,15 @@ export interface Settings {
    */
   sessionScope: SessionScope
   /**
+   * How often 「工作区内」 re-reads its group, in milliseconds.
+   *
+   * Configurable so the behaviour that keeps the mode cheap can be asserted: the
+   * refresh narrows the mirrored set to the conversations that are actually producing
+   * events, and a fixed ten-second interval cannot be waited out in a test. Absent
+   * means the default.
+   */
+  workspaceRefreshMs?: number
+  /**
    * The session `pinned` mode writes to; null while nothing is chosen.
    *
    * `fresh` keeps its own id elsewhere — in extension storage, alongside a check
@@ -421,6 +430,11 @@ export function normalizeSettings(candidate: Partial<Settings> | undefined): Set
     sessionScope: source.sessionScope === 'pinned'
     ? 'pinned'
     : source.sessionScope === 'workspace' ? 'workspace' : 'fresh',
+    // Absent or unusable means the default cadence; a zero or negative interval would
+    // spin, so it is rejected rather than clamped.
+    ...(typeof source.workspaceRefreshMs === 'number' && Number.isFinite(source.workspaceRefreshMs) && source.workspaceRefreshMs > 0
+      ? { workspaceRefreshMs: source.workspaceRefreshMs }
+      : {}),
     // A pinned id is only meaningful when a session is actually named; an empty
     // or non-string value collapses to "nothing chosen" rather than sending the
     // next prompt to a session id built from junk.

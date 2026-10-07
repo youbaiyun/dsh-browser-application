@@ -727,7 +727,9 @@ async function startBridge(): Promise<void> {
         // exists to remove. Also the first chance to read the workspace path, which is
         // what `workspaceSessions` needs to find the right group.
         if (settings.sessionScope === 'workspace') {
-          void startWorkspaceMirror().then(() => { startWorkspaceRefresh() }, () => {})
+          // The whole group once, so the transcript a user was reading is back after a
+          // reconnect; the refresh below narrows it to what is actually live.
+          void startWorkspaceMirror({ onlyActive: false }).then(() => { startWorkspaceRefresh() }, () => {})
         }
         broadcastState()
       },
@@ -1533,7 +1535,7 @@ async function listSessions(): Promise<SessionSummary[]> {
  *
  * @returns id → label, empty when the grouping is off or nothing is in it yet.
  */
-async function workspaceSessions(): Promise<Map<string, string>> {
+async function workspaceSessions(options: { onlyActive: boolean }): Promise<Map<string, string>> {
   const path = bridgePolicy?.sessionWorkspacePath
   const mirror = new Map<string, string>()
   if (path === undefined || path === '') return mirror
@@ -1542,14 +1544,76 @@ async function workspaceSessions(): Promise<Map<string, string>> {
   const wanted = items.find((item) => isPlainObject(item) && item.path === path)
   if (!isPlainObject(wanted) || !Array.isArray(wanted.sessionIds)) return mirror
   const title = typeof wanted.title === 'string' && wanted.title !== '' ? wanted.title : path
+  const memberIds = new Set<string>()
   for (const id of wanted.sessionIds) {
     if (typeof id !== 'string' || id === '') continue
-    // Labelled with the group, not with the conversation: the panel is showing several
-    // at once and each row's own title is already in the transcript.
+    memberIds.add(id)
+  }
+  if (memberIds.size === 0) return mirror
+
+  if (!options.onlyActive) {
+    // Entering the mode: mirror the whole group once, so a conversation that has been
+    // driven from the desktop side is on screen even though its work predates this
+    // connection. Followed streams deliver the snapshot, which is what makes the
+    // existing transcript appear rather than only what happens next.
+    for (const id of memberIds) mirror.set(id, title)
+    return mirror
+  }
+
+  // Steady state: only the conversations that are actually producing something.
+  for (const id of sessionsWorthFollowing(memberIds, await listSessions(), Date.now())) {
     mirror.set(id, title)
   }
   return mirror
 }
+
+/** A conversation whose last event is older than this is no longer worth following. */
+export const RECENT_ACTIVITY_MS = 5 * 60_000
+
+/**
+ * Which of a group's conversations are worth following right now.
+ *
+ * This is what keeps 「工作区内」 cheap. Following every member of a workspace costs one
+ * server-side stream per member to watch the one or two that are live, and a group grows
+ * without bound as conversations accumulate. Activity is answerable from `session.list`
+ * metadata without asking any Session anything: `updatedAt` moves when a conversation
+ * produces an event and stays put when it does not, and `running` marks a turn in
+ * flight. So a conversation that starts working becomes recent and is followed on the
+ * next tick, and one that goes quiet leaves the window and is dropped.
+ *
+ * Pure and exported so the decision can be tested directly, rather than through a timer
+ * that has to be waited out.
+ *
+ * @param memberIds - every conversation in the group.
+ * @param active - the desktop's session list, as the worker reads it.
+ * @param now - current time, injected so the window is testable.
+ * @returns the ids to follow, in the order `active` reports them (most recent first).
+ */
+export function sessionsWorthFollowing(
+  memberIds: ReadonlySet<string>,
+  active: readonly { sessionId: string; updatedAt: number; running: boolean }[],
+  now: number,
+): string[] {
+  const cutoff = now - RECENT_ACTIVITY_MS
+  const wanted: string[] = []
+  for (const session of active) {
+    if (!memberIds.has(session.sessionId)) continue
+    if (!session.running && session.updatedAt < cutoff) continue
+    wanted.push(session.sessionId)
+  }
+  return wanted
+}
+
+/**
+ * How recent a conversation's last event must be for 「工作区内」 to keep following it.
+ *
+ * Long enough that a conversation being read or thought about is not dropped mid-use,
+ * short enough that a group of twenty settles to the one or two that are live. The
+ * comparison is against `updatedAt`, which only moves when a conversation produces an
+ * event, so this really is "has anything happened here lately" rather than a guess.
+ *
+ * Declared with {@link sessionsWorthFollowing} above; this note is the rationale.
+ */
 
 /**
  * The newest mirrored conversation, or null when the group is empty.
@@ -1577,10 +1641,12 @@ function newestMirrored(mirror: ReadonlyMap<string, string>): string | null {
  * to open one is tolerated — the others still mirror, and `session.follow` on a
  * conversation that is already followed is cheap.
  *
+ * @param options.onlyActive - true in the steady state, to follow just the live
+ *   conversations; false on entry, to mirror the whole group once.
  * @returns the mirrored set, so the caller can publish it to the panel.
  */
-async function startWorkspaceMirror(): Promise<Map<string, string>> {
-  const mirror = await workspaceSessions()
+async function startWorkspaceMirror(options: { onlyActive: boolean } = { onlyActive: true }): Promise<Map<string, string>> {
+  const mirror = await workspaceSessions(options)
   control.setMirrored(mirror)
   for (const id of mirror.keys()) void startFollowingSession(id)
   const newest = newestMirrored(mirror)
@@ -1670,7 +1736,11 @@ async function selectSessionScope(scope: SessionScope, sessionId: string | null)
     sessionRefresh = new Map()
     control.detach(keep)
     await persistSettings({ sessionScope: 'workspace', pinnedSessionId: null })
-    await startWorkspaceMirror()
+    // The whole group on entry, so a conversation the desktop drove earlier is visible
+    // rather than only what happens from now on. The refresh below then follows just
+    // the live ones, which is what keeps twenty idle conversations from costing twenty
+    // server-side streams.
+    await startWorkspaceMirror({ onlyActive: false })
     startWorkspaceRefresh()
     broadcastState()
     return
@@ -1698,6 +1768,14 @@ async function selectSessionScope(scope: SessionScope, sessionId: string | null)
 /** How often 「工作区内」 re-reads the group, so a new conversation appears on its own. */
 const WORKSPACE_REFRESH_MS = 10_000
 
+/** The configured refresh interval, for the tests that need it faster than ten seconds. */
+function workspaceRefreshMs(): number {
+  const configured = settings.workspaceRefreshMs
+  return typeof configured === 'number' && Number.isFinite(configured) && configured > 0
+    ? configured
+    : WORKSPACE_REFRESH_MS
+}
+
 /** The refresh timer for 「工作区内」, and the set it last published. */
 let workspaceTimer: ReturnType<typeof setInterval> | null = null
 let sessionRefresh = new Map<string, string>()
@@ -1717,7 +1795,7 @@ function startWorkspaceRefresh(): void {
       },
       () => { /* A read that failed: the next tick tries again. */ },
     )
-  }, WORKSPACE_REFRESH_MS)
+  }, workspaceRefreshMs())
   // Node and the worker both keep a process alive for a pending interval; this one is
   // bookkeeping and must never be the reason the worker stays up.
   const timer = workspaceTimer as unknown as { unref?: () => void }

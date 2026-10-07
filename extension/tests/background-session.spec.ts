@@ -913,6 +913,50 @@ describe('conversation routing', () => {
     })
   })
 
+  it('follows only the workspace conversations that are actually producing something', async () => {
+    // 「工作区内」 settles to the live conversations instead of subscribing to every member
+    // of a workspace: twenty members would cost twenty server-side streams to watch the
+    // one or two that are working, and a group grows as conversations accumulate.
+    // `updatedAt` moves only when a conversation produces an event, so activity is
+    // answerable from metadata without asking any Session anything.
+    //
+    // Booted first: the worker touches `chrome` as it loads, and this file's stub is
+    // installed by `boot`, which a hoisted static import would outrun.
+    const { RECENT_ACTIVITY_MS, sessionsWorthFollowing } = await boot().then(() => (
+      loadedWorker as unknown as {
+        RECENT_ACTIVITY_MS: number
+        sessionsWorthFollowing: (
+          members: ReadonlySet<string>,
+          active: readonly { sessionId: string; updatedAt: number; running: boolean }[],
+          now: number,
+        ) => string[]
+      }
+    ))
+    // `elsewhere` is deliberately NOT a member: `session.list` covers every conversation
+    // on the desktop, and only the group's own members are this mode's business.
+    const members = new Set(['live', 'recent', 'quiet'])
+    const now = 1_000_000_000
+    const at = (ageMs: number) => now - ageMs
+    expect(sessionsWorthFollowing(
+      members,
+      [
+        // A turn in flight is kept however long ago it last emitted: a slow turn must not
+        // be dropped halfway through.
+        { sessionId: 'live', updatedAt: at(RECENT_ACTIVITY_MS * 3), running: true },
+        { sessionId: 'recent', updatedAt: at(RECENT_ACTIVITY_MS / 2), running: false },
+        { sessionId: 'quiet', updatedAt: at(RECENT_ACTIVITY_MS * 2), running: false },
+        // `session.list` covers every conversation on the desktop; only the group's
+        // members are this mode's business.
+        { sessionId: 'elsewhere', updatedAt: at(0), running: true },
+      ],
+      now,
+    )).toEqual(['live', 'recent'])
+    // The window edge counts as still-active, so nothing is dropped at the boundary.
+    expect(sessionsWorthFollowing(members, [{ sessionId: 'recent', updatedAt: at(RECENT_ACTIVITY_MS), running: false }], now))
+      .toEqual(['recent'])
+    expect(sessionsWorthFollowing(new Set(), [{ sessionId: 'live', updatedAt: at(0), running: true }], now)).toEqual([])
+  })
+
   it('reports a list failure instead of showing an empty picker', async () => {
     const { control, socket } = await boot()
     control.onMessage.emit({ type: 'session.list', id: 'l1' })
